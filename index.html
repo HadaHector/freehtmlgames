@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#111111">
+<title>Free HTML Games</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 16px;
+    font-family: system-ui, sans-serif;
+    background: #111;
+    color: #eee;
+  }
+  h1 { font-size: 1.5rem; margin: 0 0 16px; }
+  ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+  a {
+    display: block;
+    padding: 16px;
+    border-radius: 8px;
+    background: #222;
+    color: inherit;
+    text-decoration: none;
+    font-size: 1.1rem;
+  }
+  a:active { background: #333; }
+  p { color: #888; }
+</style>
+</head>
+<body>
+<h1>Free HTML Games</h1>
+<ul id="list"></ul>
+<p id="empty" hidden>No games yet.</p>
+<script>
+  // Add games here: { name: "Display Name", path: "folder-name/" }
+  const games = [];
+
+  const list = document.getElementById("list");
+  for (const g of games) {
+    const li = document.createElement("li");
+    const a = document.createElement("a");
+    a.href = g.path;
+    a.textContent = g.name;
+    li.appendChild(a);
+    list.appendChild(li);
+  }
+  document.getElementById("empty").hidden = games.length > 0;
+</script>
+</body>
+</html>
