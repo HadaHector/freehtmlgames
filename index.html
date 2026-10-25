@@ -35,7 +35,9 @@
 <p id="empty" hidden>No games yet.</p>
 <script>
   // Add games here: { name: "Display Name", path: "folder-name/" }
-  const games = [];
+  const games = [
+    { name: "Tanks", path: "tanks/" },
+  ];
 
   const list = document.getElementById("list");
   for (const g of games) {
