@@ -9,81 +9,151 @@
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body { margin: 0; background: #1b1f2a; color: #eee; font-family: system-ui, sans-serif; }
   body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
-  #app { position: relative; max-width: 900px; margin: 0 auto; padding: 8px; display: flex; flex-direction: column; gap: 8px; }
-  canvas { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; max-height: 56vh; object-fit: contain; background: #000; border-radius: 6px; }
-  #panel { display: grid; gap: 8px; }
-  .row { display: flex; align-items: center; gap: 8px; }
-  .row label { width: 52px; font-size: 14px; color: #9aa; }
-  .row input[type=range] { flex: 1; min-width: 0; height: 32px; }
-  .val { width: 48px; text-align: right; font-variant-numeric: tabular-nums; }
-  button { font: inherit; color: inherit; background: #2c3344; border: 1px solid #3d465c; border-radius: 8px; padding: 0; touch-action: none; }
+  button { font: inherit; color: inherit; background: #2c3344; border: 1px solid #3d465c; border-radius: 8px; padding: 0; touch-action: manipulation; }
   button:active:not(:disabled) { background: #3d465c; }
   button:disabled { opacity: .4; }
-  .step { width: 44px; height: 40px; font-size: 20px; flex: none; }
-  #weapons { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
-  .wbtn { height: 44px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 13px; line-height: 1.15; }
-  .wbtn small { color: #9aa; }
-  .wbtn.sel { border-color: #ffd54a; background: #3a3a22; }
+
+  #app { max-width: 900px; margin: 0 auto; padding: 8px; display: flex; flex-direction: column; gap: 8px; }
+  canvas { display: block; width: 100%; aspect-ratio: 4 / 3; max-height: 55vh; background: #000; border-radius: 6px; touch-action: none; }
+  #panel { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .row { display: flex; align-items: center; gap: 8px; }
+  .row label { width: 48px; font-size: 14px; color: #9aa; flex: none; }
+  .row input[type=range] { flex: 1; min-width: 0; height: 32px; }
+  .val { width: 44px; text-align: right; font-variant-numeric: tabular-nums; flex: none; }
+  .step { width: 40px; height: 40px; font-size: 20px; flex: none; }
+  #wname { flex: 1; text-align: center; font-size: 15px; }
   #fuel { flex: 1; height: 8px; background: #2c3344; border-radius: 4px; overflow: hidden; }
   #fuelbar { height: 100%; width: 100%; background: #7ee07e; }
-  #fire { flex: 1; height: 48px; font-size: 18px; font-weight: bold; background: #b33a3a; border-color: #d65a5a; }
+  #fire { flex: 1.4; height: 48px; font-size: 18px; font-weight: bold; background: #b33a3a; border-color: #d65a5a; }
   #fire:active:not(:disabled) { background: #d65a5a; }
-  #back { color: #7aa; font-size: 13px; text-decoration: none; }
-  #overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.6); z-index: 5; }
-  #overlay[hidden] { display: none; }
-  .box { background: #232a3a; padding: 24px 32px; border-radius: 12px; text-align: center; }
-  .box h2 { margin: 0 0 16px; }
-  .box button { padding: 12px 24px; font-size: 16px; }
-  @media (orientation: landscape) and (max-height: 520px) {
-    #app { flex-direction: row; height: 100vh; max-width: none; }
-    canvas { flex: 1; min-width: 0; height: 100%; max-height: none; aspect-ratio: auto; }
-    #panel { width: 250px; align-content: start; overflow-y: auto; }
-    #weapons { grid-template-columns: repeat(2, 1fr); }
+  .links { display: flex; justify-content: space-between; font-size: 13px; }
+  .links a, .links button { color: #7aa; text-decoration: none; background: none; border: 0; font-size: 13px; padding: 4px 0; }
+
+  /* wide screens (landscape phones, desktop): controls on the right */
+  @media (min-aspect-ratio: 1/1) {
+    #app { flex-direction: row; height: 100vh; height: 100dvh; max-width: none; }
+    canvas { flex: 1; min-width: 0; width: auto; height: 100%; max-height: none; aspect-ratio: auto; }
+    #panel { width: 330px; flex: none; align-content: center; overflow-y: auto; }
   }
+
+  .screen { position: fixed; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center; background: rgba(27,31,42,.96); overflow: auto; padding: 12px; }
+  .screen[hidden] { display: none; }
+  .card { width: 100%; max-width: 640px; margin: auto; background: #232a3a; padding: 20px; border-radius: 12px; }
+  .card h1, .card h2 { margin: 0 0 14px; text-align: center; }
+  .opts { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; margin-bottom: 14px; }
+  .opt > div:first-child { font-size: 13px; color: #9aa; margin-bottom: 5px; }
+  .seg { display: flex; flex-wrap: wrap; gap: 6px; }
+  .seg button { padding: 8px 12px; font-size: 14px; }
+  .seg button.on { border-color: #ffd54a; background: #3a3a22; }
+  .hint { font-size: 12px; color: #889; margin-top: 4px; min-height: 15px; }
+  .big { display: block; width: 100%; padding: 14px; font-size: 18px; font-weight: bold; background: #2f7d3a; border-color: #4aa857; }
+  .card .links { justify-content: center; gap: 24px; margin-top: 10px; }
+  #end .big { margin-bottom: 8px; }
+  #end .card { max-width: 320px; }
 </style>
 </head>
 <body>
 <div id="app">
-  <canvas id="c" width="800" height="450"></canvas>
+  <canvas id="c"></canvas>
   <div id="panel">
     <div class="row"><label>Angle</label><button class="step" id="angm">−</button><input type="range" id="ang" min="0" max="180" step="1"><button class="step" id="angp">+</button><span class="val" id="angv"></span></div>
     <div class="row"><label>Power</label><button class="step" id="powm">−</button><input type="range" id="pow" min="10" max="100" step="1"><button class="step" id="powp">+</button><span class="val" id="powv"></span></div>
-    <div id="weapons"></div>
+    <div class="row" id="wrow"><label>Weapon</label><button class="step" id="wprev">◀</button><div id="wname"></div><button class="step" id="wnext">▶</button></div>
     <div class="row">
       <button class="step" id="left">◀</button><button class="step" id="right">▶</button>
       <div id="fuel"><div id="fuelbar"></div></div>
       <button id="fire">FIRE</button>
     </div>
-    <a id="back" href="../">← All games</a>
+    <div class="links"><button id="menuBtn">☰ Menu</button><a href="../">← All games</a></div>
   </div>
-  <div id="overlay" hidden><div class="box"><h2 id="msg"></h2><button id="again">Play again</button></div></div>
 </div>
+
+<div id="menu" class="screen">
+  <div class="card">
+    <h1>💥 Tanks</h1>
+    <div class="opts" id="opts"></div>
+    <button class="big" id="start">Start game</button>
+    <div class="links"><a href="../">← All games</a></div>
+  </div>
+</div>
+
+<div id="end" class="screen" hidden>
+  <div class="card">
+    <h2 id="msg"></h2>
+    <button class="big" id="again">Play again</button>
+    <button class="big" id="tomenu" style="background:#2c3344;border-color:#3d465c">Menu</button>
+  </div>
+</div>
+
 <script>
 (() => {
-  const W = 800, H = 450, G = 0.14, K = 0.115, SUB = 4, BARREL = 18, PIV = 11, FUEL = 70;
-  const WEAPONS = {
-    shell:   { name: 'Shell',   r: 26, dmg: 30, ammo: Infinity, col: '#ffd54a' },
-    heavy:   { name: 'Heavy',   r: 48, dmg: 55, ammo: 3, col: '#ff6b3d' },
-    cluster: { name: 'Cluster', r: 22, dmg: 20, ammo: 3, col: '#7ee0ff' },
-    dirt:    { name: 'Dirt',    r: 34, dmg: 0,  ammo: 3, col: '#b98a52' },
-    bomblet: { name: 'Bomblet', r: 20, dmg: 22, col: '#7ee0ff' },
-  };
-  const SELECTABLE = ['shell', 'heavy', 'cluster', 'dirt'];
+  const H = 450, FUEL = 90, BARREL = 18, PIV = 11, SUB = 6;
+  let W = 800, G = 0.14, K = 0.115, waterY = H + 20;
   const $ = id => document.getElementById(id);
   const rnd = (a, b) => a + Math.random() * (b - a);
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const pick = a => a[Math.random() * a.length | 0];
+  const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.random() * (i + 1) | 0; [a[i], a[j]] = [a[j], a[i]]; } return a; };
 
+  // ---------- configuration ----------
+  const SIZES = { small: 800, medium: 1600, large: 2400 };
+  const WEAPONS = {
+    shell:    { name: 'Shell',     kind: 'blast',   r: 26,  dmg: 30,  ammo: Infinity, col: '#ffd54a' },
+    heavy:    { name: 'Heavy',     kind: 'blast',   r: 48,  dmg: 55,  ammo: 3, col: '#ff6b3d' },
+    cluster:  { name: 'Cluster',   kind: 'cluster', r: 22,  dmg: 20,  ammo: 3, col: '#7ee0ff' },
+    dirt:     { name: 'Dirt',      kind: 'dirt',    r: 34,  dmg: 0,   ammo: 3, col: '#b98a52' },
+    triple:   { name: 'Triple',    kind: 'blast',   r: 20,  dmg: 25,  ammo: 4, col: '#ffb3e6' },
+    bouncer:  { name: 'Bouncer',   kind: 'bounce',  r: 30,  dmg: 35,  ammo: 3, col: '#9f9' },
+    digger:   { name: 'Digger',    kind: 'dig',     r: 11,  dmg: 14,  ammo: 3, col: '#ddd' },
+    airstrike:{ name: 'Airstrike', kind: 'rain',    r: 0,   dmg: 0,   ammo: 2, col: '#f66' },
+    teleport: { name: 'Teleport',  kind: 'tele',    r: 0,   dmg: 0,   ammo: 2, col: '#c9f' },
+    nuke:     { name: 'Nuke',      kind: 'blast',   r: 110, dmg: 100, ammo: 1, col: '#fff' },
+    bomblet:  { name: 'Bomblet',   kind: 'blast',   r: 20,  dmg: 22,  col: '#7ee0ff' },
+  };
+  const RULES = {
+    classic: { weapons: ['shell'], desc: 'Just a plain shell. Pure aim and wind.' },
+    arsenal: { weapons: ['shell', 'heavy', 'cluster', 'dirt'], desc: 'Shell, Heavy, Cluster and Dirt bombs.' },
+    crazy:   { weapons: ['shell', 'triple', 'bouncer', 'digger', 'airstrike', 'cluster', 'dirt', 'teleport', 'nuke'],
+               desc: 'Nukes, bouncers, drills, airstrikes, teleports and more.' },
+  };
+  const AI_WEAPONS = ['heavy', 'cluster', 'triple', 'airstrike', 'nuke'];
+  const SAFE = { airstrike: 120, nuke: 135 };
+  const DIFF = {
+    easy:   { n0: 4.5, nmin: 2.0, decay: 0.9,  special: 0.2,  target: 'random' },
+    normal: { n0: 2.5, nmin: 0.7, decay: 0.8,  special: 0.45, target: 'near' },
+    hard:   { n0: 1.5, nmin: 0.3, decay: 0.75, special: 0.6,  target: 'weak' },
+    insane: { n0: 0.6, nmin: 0.05, decay: 0.6, special: 0.8,  target: 'weak' },
+  };
+  const STYLES = {
+    meadow:  { sky: ['#2b6cb0', '#a8d8f0'], soil: ['#6a8f3a', '#7a5a35', '#3a2a1a'], edge: '#8fc24a', g: 0.14, decor: ['tree', 'tree', 'bush'], clouds: true },
+    alps:    { sky: ['#3b4a7a', '#c9b6d9'], soil: ['#8a8f96', '#5f646b', '#33373c'], edge: '#f2f5f8', g: 0.14, decor: ['pine', 'pine', 'rock'], clouds: true },
+    desert:  { sky: ['#d9772f', '#f7d9a0'], soil: ['#e0b565', '#c28a45', '#7a4d26'], edge: '#f0cf84', g: 0.14, decor: ['cactus', 'rock'], sun: true },
+    islands: { sky: ['#2aa3d6', '#bfeaf2'], soil: ['#e8d29a', '#b98f55', '#5a3f22'], edge: '#f4e3b0', g: 0.14, decor: ['palm', 'palm', 'rock'], water: true, clouds: true, sun: true },
+    moon:    { sky: ['#05060d', '#1a1f33'], soil: ['#9a9aa2', '#6c6c75', '#33333a'], edge: '#c9c9d0', g: 0.084, decor: ['rock'], stars: true, earth: true },
+  };
+  const TEAMS = [['Blue', '#4a90d9'], ['Red', '#d9534f'], ['Green', '#4caf50'], ['Yellow', '#e0b020']];
+  const OPTIONS = [
+    { key: 'size',   label: 'World size',     choices: [['small', 'Small'], ['medium', 'Medium'], ['large', 'Large']] },
+    { key: 'teams',  label: 'Teams',          choices: [[2, '2'], [3, '3'], [4, '4']] },
+    { key: 'per',    label: 'Tanks per team', choices: [[1, '1'], [2, '2'], [3, '3'], [4, '4']] },
+    { key: 'humans', label: 'Players',        choices: [[1, '1 vs CPU'], [2, '2 (pass & play)'], [0, 'Watch CPU']] },
+    { key: 'style',  label: 'World style',    choices: [['random', 'Random'], ['meadow', 'Meadow'], ['alps', 'Alps'], ['desert', 'Desert'], ['islands', 'Islands'], ['moon', 'Moon']] },
+    { key: 'rules',  label: 'Weapons',        choices: [['classic', 'Classic'], ['arsenal', 'Arsenal'], ['crazy', 'Crazy']], hint: k => RULES[k].desc },
+    { key: 'diff',   label: 'CPU difficulty', choices: [['easy', 'Easy'], ['normal', 'Normal'], ['hard', 'Hard'], ['insane', 'Insane']] },
+  ];
+  const cfg = { size: 'small', teams: 2, per: 1, humans: 1, style: 'random', rules: 'arsenal', diff: 'normal' };
+  try { Object.assign(cfg, JSON.parse(localStorage.getItem('tanks.cfg') || '{}')); } catch (e) {}
+
+  // ---------- state ----------
   const cv = $('c'), ctx = cv.getContext('2d');
-  const tc = document.createElement('canvas'); tc.width = W; tc.height = H;
-  const tctx = tc.getContext('2d');
-  const mask = new Uint8Array(W * H);
-  const sky = ctx.createLinearGradient(0, 0, 0, H);
-  sky.addColorStop(0, '#2b6cb0'); sky.addColorStop(1, '#a8d8f0');
-  const soil = tctx.createLinearGradient(0, 150, 0, H);
-  soil.addColorStop(0, '#6a8f3a'); soil.addColorStop(0.35, '#7a5a35'); soil.addColorStop(1, '#3a2a1a');
+  const tc = document.createElement('canvas'), tctx = tc.getContext('2d');
+  let mask = new Uint8Array(1), soilGrad;
+  let ST, tanks, teams, cur, teamI, decor, clouds, stars, projectiles, particles;
+  let wind, state, fuel, settleT, ai, shake, flash, lastBoom, tick = 0, moveDir = 0;
+  let camX = 0, camFocus = 0, camManual = false;
+  let dpr = 1, cssW = 300, cssH = 200, S0 = 1, offY = 0, vw = 300, skyGrad;
 
-  let tanks, projectiles, particles, wind, turn, state, fuel, settleT, aiNoise, ai, shake, tick = 0, moveDir = 0;
-
+  // ---------- terrain ----------
   const solid = (x, y) => x >= 0 && x < W && y >= 0 && y < H && mask[(y | 0) * W + (x | 0)] === 1;
   function surfaceBelow(x, y0) {
     x = clamp(x | 0, 0, W - 1);
@@ -101,65 +171,178 @@
     setMask(cx, cy, r, 0);
   }
   function addDirt(cx, cy, r) {
-    tctx.fillStyle = soil; tctx.beginPath(); tctx.arc(cx, cy, r, 0, 7); tctx.fill();
+    tctx.fillStyle = soilGrad; tctx.beginPath(); tctx.arc(cx, cy, r, 0, 7); tctx.fill();
     setMask(cx, cy, r, 1);
   }
+  function normalAt(x, y) {
+    let sx = 0, sy = 0;
+    for (let dy = -4; dy <= 4; dy += 2) for (let dx = -4; dx <= 4; dx += 2) if (solid(x + dx, y + dy)) { sx += dx; sy += dy; }
+    const l = Math.hypot(sx, sy);
+    return l ? { x: -sx / l, y: -sy / l } : { x: 0, y: -1 };
+  }
 
-  function genTerrain() {
-    const waves = [];
-    for (let i = 0; i < 4; i++) waves.push({ a: rnd(20, 55) / (1 + i * 0.6), f: rnd(0.004, 0.011) * (1 + i * 1.3), p: rnd(0, 6.3) });
-    const base = rnd(0.55, 0.68) * H;
-    const hs = [];
-    for (let x = 0; x < W; x++) {
-      let h = base;
-      for (const w of waves) h += w.a * Math.sin(w.f * x + w.p);
-      hs.push(clamp(h, H * 0.3, H * 0.88));
+  function waveSum(count, aMin, aMax, fMin, fMax) {
+    const ws = [];
+    for (let i = 0; i < count; i++) ws.push({ a: rnd(aMin, aMax) / (1 + i * 0.6), f: rnd(fMin, fMax) * (1 + i * 1.3), p: rnd(0, 6.3) });
+    return x => ws.reduce((s, w) => s + w.a * Math.sin(w.f * x + w.p), 0);
+  }
+  function blur(a, r, passes) {
+    for (let p = 0; p < passes; p++) {
+      const b = a.slice();
+      for (let i = 0; i < a.length; i++) {
+        let s = 0, n = 0;
+        for (let j = Math.max(0, i - r); j <= Math.min(a.length - 1, i + r); j++) { s += b[j]; n++; }
+        a[i] = s / n;
+      }
     }
-    mask.fill(0);
-    tctx.clearRect(0, 0, W, H);
-    tctx.fillStyle = soil; tctx.beginPath(); tctx.moveTo(0, H);
+  }
+  const GEN = {
+    meadow(hs) {
+      const base = rnd(0.55, 0.68) * H, f = waveSum(4, 20, 55, 0.004, 0.011);
+      for (let x = 0; x < W; x++) hs[x] = base + f(x);
+    },
+    alps(hs) {
+      const n = 4096, arr = new Float32Array(n + 1);
+      arr[0] = rnd(-80, 80); arr[n] = rnd(-80, 80);
+      let amp = 230;
+      for (let step = n; step > 1; step /= 2, amp *= 0.55)
+        for (let i = 0; i < n; i += step) arr[i + step / 2] = (arr[i] + arr[i + step]) / 2 + rnd(-amp, amp);
+      for (let x = 0; x < W; x++) hs[x] = H * 0.6 + arr[x];
+      blur(hs, 2, 2);
+    },
+    desert(hs) {
+      const base = rnd(0.55, 0.65) * H, f = waveSum(3, 25, 50, 0.002, 0.006), step = rnd(32, 46);
+      for (let x = 0; x < W; x++) {
+        const v = (base + f(x)) / step, fl = Math.floor(v), fr = v - fl;
+        const s = fr < 0.35 ? 0 : fr > 0.65 ? 1 : (fr - 0.35) / 0.3;
+        hs[x] = (fl + s * s * (3 - 2 * s)) * step;
+      }
+    },
+    islands(hs) {
+      const base = H * 0.5, f = waveSum(3, 15, 30, 0.005, 0.012), n = Math.max(2, Math.round(W / 330));
+      const gaps = [];
+      for (let i = 0; i < n; i++) gaps.push({ c: W * (i + 0.5) / n + rnd(-0.2, 0.2) * W / n, w: rnd(70, 130) });
+      for (let x = 0; x < W; x++) {
+        let h = base + f(x);
+        for (const g of gaps) { const d = Math.min(1, Math.abs(x - g.c) / g.w); h += 500 * Math.pow(0.5 + 0.5 * Math.cos(Math.PI * d), 0.6); }
+        hs[x] = h;
+      }
+    },
+    moon(hs) {
+      const base = H * 0.6, f = waveSum(2, 8, 18, 0.003, 0.008);
+      for (let x = 0; x < W; x++) hs[x] = base + f(x);
+      for (let i = 0, n = Math.round(W / 130); i < n; i++) {
+        const c = rnd(0, W), r = rnd(28, 70);
+        for (let x = Math.max(0, Math.floor(c - 1.4 * r)); x < Math.min(W, c + 1.4 * r); x++) {
+          const d = Math.abs(x - c) / r;
+          if (d < 1) hs[x] += r * 0.4 * (1 - d * d); else hs[x] -= r * 0.12 * (1 - (d - 1) / 0.4);
+        }
+      }
+    },
+  };
+  function genTerrain(name) {
+    const hs = new Float32Array(W);
+    GEN[name](hs);
+    for (let x = 0; x < W; x++) hs[x] = clamp(hs[x], H * 0.15, H);
+    mask = new Uint8Array(W * H);
+    tc.width = W; tc.height = H;
+    soilGrad = tctx.createLinearGradient(0, 100, 0, H);
+    ST.soil.forEach((c, i) => soilGrad.addColorStop([0, 0.35, 1][i], c));
+    tctx.fillStyle = soilGrad; tctx.beginPath(); tctx.moveTo(0, H);
     for (let x = 0; x < W; x++) tctx.lineTo(x, hs[x]);
     tctx.lineTo(W, H); tctx.fill();
     for (let x = 0; x < W; x++) for (let y = Math.ceil(hs[x]); y < H; y++) mask[y * W + x] = 1;
     tctx.globalCompositeOperation = 'source-atop';
-    tctx.strokeStyle = '#8fc24a'; tctx.lineWidth = 5; tctx.beginPath();
+    tctx.strokeStyle = ST.edge; tctx.lineWidth = 5; tctx.beginPath();
     for (let x = 0; x < W; x++) x ? tctx.lineTo(x, hs[x]) : tctx.moveTo(x, hs[x]);
     tctx.stroke();
     tctx.globalCompositeOperation = 'source-over';
   }
+  const ROCK = { alps: '#7a7f86', desert: '#a8743a', moon: '#8a8a93' };
+  function placeDecor() {
+    decor = [];
+    for (let x = 12; x < W - 12; x += rnd(18, 55)) {
+      const y = surfaceBelow(x, 0);
+      if (!(y < waterY - 6)) continue;
+      decor.push({ x, y: y + 1, type: pick(ST.decor), s: rnd(0.7, 1.3), v: rnd(0, 1), col: ROCK[styleName] || '#8a8a8a' });
+    }
+    clouds = [];
+    if (ST.clouds) for (let x = 0; x < W * 0.5 + 800; x += rnd(120, 260)) clouds.push({ x, y: rnd(15, 150), w: rnd(40, 90) });
+    stars = [];
+    if (ST.stars) for (let i = 0; i < 90; i++) stars.push({ x: Math.random(), y: Math.random() * 0.85, r: rnd(0.5, 1.6) });
+  }
 
-  function mkTank(i, x) {
-    const ammo = {}; for (const k of SELECTABLE) ammo[k] = WEAPONS[k].ammo;
-    return { x, y: 0, vy: 0, hp: 100, dead: false, ang: i ? 130 : 50, pow: 60, weapon: 'shell', ammo,
-             col: i ? '#d9534f' : '#4a90d9' };
+  // ---------- setup ----------
+  let styleName;
+  function startGame() {
+    $('menu').hidden = true; $('end').hidden = true;
+    try { localStorage.setItem('tanks.cfg', JSON.stringify(cfg)); } catch (e) {}
+    W = SIZES[cfg.size];
+    styleName = cfg.style === 'random' ? pick(Object.keys(STYLES)) : cfg.style;
+    ST = STYLES[styleName];
+    G = ST.g; K = 0.115 * Math.sqrt(W / 800) * Math.sqrt(G / 0.14);
+    waterY = ST.water ? H - 45 : H + 20;
+    genTerrain(styleName); placeDecor();
+
+    teams = []; tanks = [];
+    for (let i = 0; i < cfg.teams; i++) {
+      const tm = { i, name: TEAMS[i][0], col: TEAMS[i][1], tanks: [], next: 0, noise: DIFF[cfg.diff].n0, human: i < cfg.humans };
+      for (let j = 0; j < cfg.per; j++) {
+        const ammo = {}; for (const k of RULES[cfg.rules].weapons) ammo[k] = WEAPONS[k].ammo;
+        const t = { team: i, x: 0, y: 0, vy: 0, hp: 100, dead: false, ang: 90, pow: 60, weapon: 'shell', ammo, col: tm.col };
+        tm.tanks.push(t); tanks.push(t);
+      }
+      teams.push(tm);
+    }
+    placeTanks();
+    projectiles = []; particles = []; shake = 0; flash = 0; moveDir = 0; lastBoom = 0;
+    wind = rnd(-0.012, 0.012); teamI = 0; cur = teams[0].tanks[0]; teams[0].next = 1;
+    makeSky(); camX = cur.x - vw / 2; startTurn(false);
   }
-  function newGame() {
-    genTerrain();
-    tanks = [mkTank(0, rnd(50, 170)), mkTank(1, rnd(W - 170, W - 50))];
-    for (const t of tanks) t.y = Math.min(...[-12, 0, 12].map(o => surfaceBelow(t.x + o, 0)));
-    projectiles = []; particles = []; shake = 0; aiNoise = 2.5; moveDir = 0;
-    wind = rnd(-0.012, 0.012); turn = 0; settleT = 0;
-    $('overlay').hidden = true;
-    startTurn(false);
+  function surfaceAt(x) { return Math.min(...[-12, 0, 12].map(o => surfaceBelow(x + o, 0))); }
+  function placeTanks() {
+    const n = tanks.length, seg = (W - 80) / n, slots = shuffle([...Array(n).keys()]);
+    tanks.forEach((t, i) => {
+      const c = 40 + seg * (slots[i] + 0.5);
+      let x = clamp(c + rnd(-0.25, 0.25) * seg, 20, W - 20), y = surfaceAt(x);
+      for (let o = 8; !(y < waterY - 12) && o < W / 2; o += 8)
+        for (const sg of [1, -1]) { const xx = clamp(c + sg * o, 20, W - 20), yy = surfaceAt(xx); if (yy < waterY - 12) { x = xx; y = yy; break; } }
+      t.x = x; t.y = isFinite(y) ? y : 0;
+      t.ang = x < W / 2 ? 50 : 130;
+    });
   }
+  const aliveTeam = tm => tm.tanks.some(t => !t.dead);
   function startTurn(drift = true) {
     if (drift) wind = clamp(wind + rnd(-0.006, 0.006), -0.015, 0.015);
-    fuel = FUEL; state = 'aim';
-    if (turn === 1) aiPlan();
+    fuel = FUEL; state = 'aim'; camFocus = cur.x; camManual = false; moveDir = 0;
+    if (!teams[cur.team].human) aiPlan();
     updateUI();
   }
   function endTurn() {
-    const [a, b] = tanks;
-    if (a.dead || b.dead) {
+    const alive = teams.filter(aliveTeam);
+    const humansAlive = teams.some(t => t.human && aliveTeam(t));
+    if (alive.length <= 1 || (cfg.humans > 0 && !humansAlive)) {
       state = 'over'; updateUI();
-      const m = a.dead && b.dead ? 'Draw!' : b.dead ? 'You win!' : 'You lose!';
-      setTimeout(() => { $('msg').textContent = m; $('overlay').hidden = false; }, 700);
+      let m;
+      if (!alive.length) m = 'Draw!';
+      else if (cfg.humans > 0 && !humansAlive) m = 'You lose!';
+      else m = cfg.humans === 1 && alive[0].i === 0 ? 'You win!' : alive[0].name + ' team wins!';
+      setTimeout(() => { $('msg').textContent = m; $('end').hidden = false; }, 700);
       return;
     }
-    turn ^= 1; startTurn();
+    do { teamI = (teamI + 1) % teams.length; } while (!aliveTeam(teams[teamI]));
+    const tm = teams[teamI];
+    while (tm.tanks[tm.next % tm.tanks.length].dead) tm.next++;
+    cur = tm.tanks[tm.next++ % tm.tanks.length];
+    startTurn();
   }
 
-  // --- tanks ---
+  // ---------- tanks ----------
+  function hurt(t, amt) {
+    if (t.dead) return;
+    t.hp -= amt;
+    if (t.hp <= 0) { t.hp = 0; t.dead = true; burst(t.x, t.y - 8, 50, ['#ff9a3d', '#ffd54a', t.col, '#333']); shake = 10; }
+  }
   function settle(t) {
     let s = Infinity;
     for (const o of [-12, 0, 12]) s = Math.min(s, surfaceBelow(t.x + o, t.y - 6));
@@ -167,7 +350,10 @@
     if (s > t.y + 0.5) {
       t.vy = Math.min(t.vy + 0.2, 5); t.y = Math.min(s, t.y + t.vy); moved = true;
     } else { t.vy = 0; if (s < t.y - 0.5) { t.y = s; moved = true; } }
-    if (t.y > H + 20) { t.dead = true; burst(t.x, H - 10, 30, ['#fff', '#8cf']); }
+    if (t.y > waterY) {
+      t.dead = true; t.hp = 0;
+      burst(t.x, Math.min(waterY, H - 10), 30, ['#fff', '#8cf']);
+    }
     return moved;
   }
   function moveTank(t, dx) {
@@ -181,13 +367,14 @@
   }
   const pivot = t => ({ x: t.x, y: t.y - PIV });
 
-  // --- projectiles ---
+  // ---------- projectiles ----------
   function stepProj(p, targets) {
+    const bottom = ST.water ? waterY : H;
     for (let s = 0; s < SUB; s++) {
       p.vx += wind / SUB; p.vy += G / SUB; p.x += p.vx / SUB; p.y += p.vy / SUB;
-      if (p.x < 0 || p.x >= W || p.y >= H) return 'out';
+      if (p.x < 0 || p.x >= W || p.y >= bottom) return 'out';
       for (const t of targets)
-        if (!t.dead && Math.abs(p.x - t.x) < 15 && p.y > t.y - 17 && p.y < t.y) return 'hit';
+        if (!t.dead && Math.abs(p.x - t.x) < 15 && p.y > t.y - 17 && p.y < t.y) return 'tank';
       if (solid(p.x, p.y)) return 'hit';
     }
     return null;
@@ -198,45 +385,88 @@
              vx: Math.cos(a) * pow * K, vy: -Math.sin(a) * pow * K };
   }
   function fire() {
-    const t = tanks[turn], w = WEAPONS[t.weapon];
+    const t = cur, w = WEAPONS[t.weapon];
     if (t.ammo[t.weapon] !== Infinity) t.ammo[t.weapon]--;
-    const p = launch(t, t.ang, t.pow);
-    p.type = t.weapon; p.trail = []; p.owner = turn;
-    projectiles.push(p);
-    burst(p.x, p.y, 6, ['#fff', w.col]);
+    for (const da of t.weapon === 'triple' ? [-5, 0, 5] : [0]) {
+      const p = launch(t, t.ang + da, t.pow);
+      Object.assign(p, { type: t.weapon, trail: [], owner: t, bounces: 3, life: 0 });
+      projectiles.push(p);
+    }
+    burst(projectiles[0].x, projectiles[0].y, 6, ['#fff', w.col]);
     if (t.ammo[t.weapon] <= 0) t.weapon = 'shell';
-    state = 'fly'; moveDir = 0; updateUI();
+    state = 'fly'; moveDir = 0; camManual = false; updateUI();
   }
   function updateProjectiles() {
     for (const p of projectiles.slice()) {
-      const prevVy = p.vy;
+      const prevVy = p.vy, w = WEAPONS[p.type];
       const r = stepProj(p, tanks);
+      p.life++;
       p.trail.push({ x: p.x, y: p.y }); if (p.trail.length > 12) p.trail.shift();
-      if (r === 'out') { projectiles.splice(projectiles.indexOf(p), 1); continue; }
-      if (r === 'hit') { projectiles.splice(projectiles.indexOf(p), 1); explode(p); continue; }
-      if (p.type === 'cluster' && prevVy < 0 && p.vy >= 0) {
-        projectiles.splice(projectiles.indexOf(p), 1);
-        for (let i = -2; i <= 2; i++)
-          projectiles.push({ x: p.x, y: p.y, vx: p.vx + i * 0.9, vy: p.vy, type: 'bomblet', trail: [], owner: p.owner });
+      const drop = () => projectiles.splice(projectiles.indexOf(p), 1);
+      if (r === 'out') {
+        drop();
+        if (ST.water && p.y >= waterY && p.x > 0 && p.x < W) burst(p.x, waterY, 10, ['#fff', '#8cf']);
+        continue;
       }
+      if (r === 'hit' && w.kind === 'bounce' && p.bounces > 0 && p.life < 900) {
+        const n = normalAt(p.x, p.y), dot = p.vx * n.x + p.vy * n.y;
+        p.vx -= 1.6 * dot * n.x; p.vy -= 1.6 * dot * n.y; p.bounces--;
+        for (let k = 0; k < 10 && solid(p.x, p.y); k++) { p.x += n.x; p.y += n.y; }
+        burst(p.x, p.y, 4, ['#9f9', '#fff']);
+        continue;
+      }
+      if (r) { drop(); explode(p); continue; }
+      if (p.life > 1500) { drop(); explode(p); continue; }
+      if (w.kind === 'cluster' && prevVy < 0 && p.vy >= 0) {
+        drop();
+        for (let i = -2; i <= 2; i++)
+          projectiles.push({ x: p.x, y: p.y, vx: p.vx + i * 0.9 * Math.sqrt(K / 0.115), vy: p.vy, type: 'bomblet', trail: [], owner: p.owner, life: 0 });
+      }
+    }
+    if (projectiles.length) camFocus = projectiles[0].x;
+  }
+  function blast(x, y, r, dmg) {
+    carve(x, y, r);
+    burst(x, y, r, ['#ff9a3d', '#ffd54a', '#7a5a35', '#fff']);
+    shake = Math.max(shake, r / 6);
+    const R = r + 14;
+    for (const t of tanks) {
+      if (t.dead) continue;
+      const d = Math.hypot(x - t.x, y - (t.y - 8));
+      if (d < R) hurt(t, Math.max(1, Math.round(dmg * (1 - d / R))));
     }
   }
   function explode(p) {
     const w = WEAPONS[p.type];
-    if (p.type === 'dirt') {
-      addDirt(p.x, p.y, w.r); burst(p.x, p.y, 14, ['#b98a52', '#7a5a35']);
-      return;
-    }
-    carve(p.x, p.y, w.r);
-    burst(p.x, p.y, w.r, ['#ff9a3d', '#ffd54a', '#7a5a35', '#fff']);
-    shake = Math.max(shake, w.r / 6);
-    for (const t of tanks) {
-      if (t.dead) continue;
-      const R = w.r + 14, d = Math.hypot(p.x - t.x, p.y - (t.y - 8));
-      if (d < R) {
-        t.hp -= Math.max(1, Math.round(w.dmg * (1 - d / R)));
-        if (t.hp <= 0) { t.hp = 0; t.dead = true; burst(t.x, t.y - 8, 50, ['#ff9a3d', '#ffd54a', t.col, '#333']); shake = 10; }
+    lastBoom = camFocus = p.x;
+    switch (w.kind) {
+      case 'dirt':
+        addDirt(p.x, p.y, w.r); burst(p.x, p.y, 14, ['#b98a52', '#7a5a35']); break;
+      case 'tele': {
+        const t = p.owner;
+        burst(t.x, t.y - 8, 20, ['#c9f', '#fff']);
+        t.x = clamp(p.x, 15, W - 15); t.y = p.y - 2; t.vy = 0;
+        burst(t.x, t.y - 8, 20, ['#c9f', '#fff']); break;
       }
+      case 'rain': {
+        const order = shuffle([0, 1, 2, 3, 4, 5, 6]);
+        order.forEach((o, i) => projectiles.push({ x: p.x + (i - 3) * 24 + rnd(-6, 6), y: -20 - o * 28, vx: 0, vy: 2, type: 'bomblet', trail: [], owner: p.owner, life: 0 }));
+        burst(p.x, p.y, 8, ['#f66', '#fff']); break;
+      }
+      case 'dig': {
+        const l = Math.hypot(p.vx, p.vy) || 1, dx = p.vx / l, dy = p.vy / l, hit = new Set();
+        for (let i = 0; i < 22; i++) {
+          const cx = p.x + dx * i * 5, cy = p.y + dy * i * 5;
+          if (cx < 0 || cx >= W || cy >= H) break;
+          carve(cx, cy, w.r);
+          if (i % 3 === 0) burst(cx, cy, 4, ['#7a5a35', '#ddd']);
+          for (const t of tanks) if (!t.dead && !hit.has(t) && Math.hypot(cx - t.x, cy - (t.y - 8)) < w.r + 14) { hit.add(t); hurt(t, w.dmg); }
+        }
+        shake = Math.max(shake, 3); break;
+      }
+      default:
+        blast(p.x, p.y, w.r, w.dmg);
+        if (p.type === 'nuke') { flash = 1; shake = 16; }
     }
   }
   function burst(x, y, n, cols) {
@@ -246,34 +476,47 @@
     }
   }
 
-  // --- AI ---
+  // ---------- AI ----------
   function simulate(t, ang, pow, foe) {
     const p = launch(t, ang, pow);
     for (let i = 0; i < 1500; i++) {
       const r = stepProj(p, [foe]);
       if (r === 'out') return null;
-      if (r === 'hit') return p;
+      if (r) return p;
     }
     return null;
   }
   function aiPlan() {
-    const me = tanks[1], foe = tanks[0];
-    const avail = ['heavy', 'cluster'].filter(k => me.ammo[k] > 0);
-    me.weapon = avail.length && Math.random() < 0.45 ? avail[Math.random() * avail.length | 0] : 'shell';
-    let best = null, bd = Infinity;
-    for (let a = 60; a <= 175; a++) for (let pw = 15; pw <= 100; pw += 2) {
+    const me = cur, tm = teams[me.team], D = DIFF[cfg.diff];
+    const foes = tanks.filter(t => !t.dead && t.team !== me.team);
+    const dist = t => Math.abs(t.x - me.x);
+    let foe;
+    if (D.target === 'random') foe = pick(foes);
+    else if (D.target === 'near') foe = foes.reduce((a, b) => dist(b) < dist(a) ? b : a);
+    else foe = foes.reduce((a, b) => b.hp < a.hp || (b.hp === a.hp && dist(b) < dist(a)) ? b : a);
+    const avail = AI_WEAPONS.filter(k => me.ammo[k] > 0);
+    me.weapon = avail.length && Math.random() < D.special ? pick(avail) : 'shell';
+    const safe = SAFE[me.weapon] || WEAPONS[me.weapon].r + 25;
+    const mates = tm.tanks.filter(t => t !== me && !t.dead);
+    let best = { a: me.x < foe.x ? 45 : 135, pw: 70, d: Infinity };
+    const tryShot = (a, pw) => {
       const hit = simulate(me, a, pw, foe);
-      if (!hit || Math.hypot(hit.x - me.x, hit.y - me.y) < 50) continue;
+      if (!hit || Math.hypot(hit.x - me.x, hit.y - me.y) < safe) return;
+      for (const m of mates) if (Math.hypot(hit.x - m.x, hit.y - (m.y - 8)) < safe) return;
       const d = Math.hypot(hit.x - foe.x, hit.y - (foe.y - 8));
-      if (d < bd) { bd = d; best = { a, pw }; }
+      if (d < best.d) best = { a, pw, d };
+    };
+    for (let a = 5; a <= 175; a += 2) for (let pw = 15; pw <= 100; pw += 3) tryShot(a, pw);
+    for (const [da, dp, ra, rp] of [[0.5, 0.5, 2, 3], [0.1, 0.1, 0.5, 0.5]]) {
+      const c = best;
+      for (let a = c.a - ra; a <= c.a + ra + 1e-9; a += da) for (let pw = c.pw - rp; pw <= c.pw + rp + 1e-9; pw += dp)
+        if (a >= 0 && a <= 180 && pw >= 10 && pw <= 100) tryShot(a, pw);
     }
-    if (!best) best = { a: 135, pw: 70 };
-    ai = { ta: Math.round(clamp(best.a + rnd(-4, 4) * aiNoise, 0, 180)),
-           tp: Math.round(clamp(best.pw + rnd(-5, 5) * aiNoise, 10, 100)), wait: 0 };
-    aiNoise = Math.max(0.7, aiNoise * 0.8);
+    ai = { ta: clamp(best.a + rnd(-4, 4) * tm.noise, 0, 180), tp: clamp(best.pw + rnd(-5, 5) * tm.noise, 10, 100), wait: 0 };
+    tm.noise = Math.max(D.nmin, tm.noise * D.decay);
   }
   function aiUpdate() {
-    const me = tanks[1];
+    const me = cur;
     me.ang += clamp(ai.ta - me.ang, -1.5, 1.5);
     me.pow += clamp(ai.tp - me.pow, -1, 1);
     if (Math.abs(ai.ta - me.ang) < 0.01 && Math.abs(ai.tp - me.pow) < 0.01 && ++ai.wait > 30) {
@@ -281,28 +524,83 @@
     }
   }
 
-  // --- loop ---
+  // ---------- loop ----------
+  function clampCam() { camX = W <= vw ? (W - vw) / 2 : clamp(camX, 0, W - vw); }
   function update() {
     tick++;
+    if (!tanks) return;
     if (state === 'aim') {
-      if (turn === 0) {
-        if (moveDir && fuel > 0 && moveTank(tanks[0], moveDir)) { fuel--; $('fuelbar').style.width = fuel / FUEL * 100 + '%'; }
+      camFocus = cur.x;
+      if (teams[cur.team].human) {
+        if (moveDir && fuel > 0 && moveTank(cur, moveDir)) { fuel--; $('fuelbar').style.width = fuel / FUEL * 100 + '%'; }
       } else aiUpdate();
     }
     if (state === 'fly') updateProjectiles();
     for (const p of particles) { p.x += p.vx; p.y += p.vy; p.vy += 0.15; p.life--; }
     particles = particles.filter(p => p.life > 0);
-    shake *= 0.9;
+    shake *= 0.9; flash *= 0.93;
     let moved = false;
     for (const t of tanks) if (!t.dead) moved = settle(t) || moved;
-    if (state === 'fly' && !projectiles.length) { state = 'settle'; settleT = 0; updateUI(); }
+    if (tick % 8 === 0) decor = decor.filter(d => {
+      const ok = solid(d.x, d.y + 1) && !solid(d.x, d.y - 3);
+      if (!ok) burst(d.x, d.y - 6, 5, ['#4a8a3a', '#7a5a35']);
+      return ok;
+    });
+    if (state === 'fly' && !projectiles.length) { state = 'settle'; settleT = 0; camFocus = lastBoom || camFocus; updateUI(); }
     else if (state === 'settle') {
       settleT = moved ? 0 : settleT + 1;
       if (settleT > 30) endTurn();
     }
+    if (!camManual) camX += (camFocus - vw / 2 - camX) * (state === 'fly' ? 0.25 : 0.1);
+    clampCam();
   }
 
-  function drawTank(t, i) {
+  // ---------- drawing ----------
+  function makeSky() {
+    skyGrad = ctx.createLinearGradient(0, 0, 0, cssH);
+    skyGrad.addColorStop(0, ST.sky[0]); skyGrad.addColorStop(1, ST.sky[1]);
+  }
+  function resize() {
+    const r = cv.getBoundingClientRect();
+    dpr = Math.min(2, window.devicePixelRatio || 1);
+    cssW = Math.max(1, r.width); cssH = Math.max(1, r.height);
+    cv.width = Math.round(cssW * dpr); cv.height = Math.round(cssH * dpr);
+    S0 = Math.min(cssH / H, cssW / Math.min(W, 620));
+    offY = cssH - H * S0; vw = cssW / S0;
+    if (ST) { makeSky(); clampCam(); }
+  }
+  function drawDecor(d) {
+    const s = d.s, x = d.x, y = d.y;
+    switch (d.type) {
+      case 'tree':
+        ctx.fillStyle = '#6b4a2b'; ctx.fillRect(x - 1.5, y - 14 * s, 3, 14 * s);
+        ctx.fillStyle = '#3f8f3f'; ctx.beginPath(); ctx.arc(x, y - 19 * s, 9 * s, 0, 7); ctx.fill();
+        ctx.fillStyle = '#58ad52'; ctx.beginPath(); ctx.arc(x - 3 * s, y - 21 * s, 4 * s, 0, 7); ctx.fill(); break;
+      case 'bush':
+        ctx.fillStyle = '#3f8f3f'; ctx.beginPath(); ctx.arc(x, y - 3 * s, 5 * s, 0, 7); ctx.arc(x + 5 * s, y - 2 * s, 4 * s, 0, 7); ctx.fill();
+        if (d.v > 0.5) { ctx.fillStyle = '#ff6'; ctx.fillRect(x - 1, y - 6 * s, 2, 2); } break;
+      case 'pine':
+        ctx.fillStyle = '#5a3d25'; ctx.fillRect(x - 1.5, y - 6 * s, 3, 6 * s);
+        ctx.fillStyle = '#2f6b4a';
+        for (let i = 0; i < 3; i++) { const by = y - (5 + i * 8) * s, w = (11 - i * 3) * s; ctx.beginPath(); ctx.moveTo(x - w, by); ctx.lineTo(x + w, by); ctx.lineTo(x, by - 12 * s); ctx.fill(); }
+        break;
+      case 'rock':
+        ctx.fillStyle = d.col; ctx.beginPath(); ctx.ellipse(x, y - 2 * s, 6 * s, 4 * s, 0, Math.PI, 0); ctx.fill(); break;
+      case 'cactus':
+        ctx.fillStyle = '#3f8a4a'; ctx.fillRect(x - 2, y - 20 * s, 4, 20 * s);
+        ctx.fillRect(x - 8 * s, y - 14 * s, 6 * s, 3); ctx.fillRect(x - 8 * s, y - 20 * s, 3, 8 * s);
+        ctx.fillRect(x + 2, y - 10 * s, 6 * s, 3); ctx.fillRect(x + 5 * s + 2, y - 16 * s, 3, 8 * s); break;
+      case 'palm': {
+        const lean = d.v > 0.5 ? 1 : -1, tx = x + 8 * lean * s, ty = y - 26 * s;
+        ctx.strokeStyle = '#8a6a3a'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(x, y); ctx.quadraticCurveTo(x + 1 * lean, y - 16 * s, tx, ty); ctx.stroke();
+        ctx.strokeStyle = '#3f9f4a'; ctx.lineWidth = 2.5;
+        for (let i = -2; i <= 2; i++) { ctx.beginPath(); ctx.moveTo(tx, ty); ctx.quadraticCurveTo(tx + i * 6 * s, ty - 8 * s, tx + i * 10 * s, ty + 2 * s - Math.abs(i) * 1); ctx.stroke(); }
+        break;
+      }
+    }
+  }
+  function drawTank(t) {
     if (t.dead) return;
     const pv = pivot(t), a = t.ang * Math.PI / 180;
     ctx.lineCap = 'round';
@@ -314,20 +612,34 @@
     ctx.fillStyle = '#000'; ctx.fillRect(t.x - 19, t.y - 31, 38, 6);
     ctx.fillStyle = t.hp > 50 ? '#5c5' : t.hp > 25 ? '#ec4' : '#e44';
     ctx.fillRect(t.x - 18, t.y - 30, 36 * t.hp / 100, 4);
-    if (i === turn && state !== 'over' && state !== 'fly') {
+    if (t === cur && state !== 'over' && state !== 'fly') {
       const by = t.y - 42 + Math.sin(tick / 8) * 2;
       ctx.fillStyle = '#ffd54a'; ctx.beginPath(); ctx.moveTo(t.x - 5, by - 6); ctx.lineTo(t.x + 5, by - 6); ctx.lineTo(t.x, by); ctx.fill();
     }
   }
   function draw() {
-    ctx.save();
-    if (shake > 0.3) ctx.translate(rnd(-shake, shake), rnd(-shake, shake));
-    ctx.fillStyle = sky; ctx.fillRect(-20, -20, W + 40, H + 40);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    if (!tanks) { ctx.fillStyle = '#1b1f2a'; ctx.fillRect(0, 0, cv.width, cv.height); return; }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.fillStyle = skyGrad; ctx.fillRect(0, 0, cssW, cssH);
+    // sky decorations (screen space / parallax)
+    if (ST.stars) { ctx.fillStyle = '#fff'; for (const s of stars) ctx.fillRect(s.x * cssW, s.y * cssH, s.r, s.r); }
+    if (ST.earth) { ctx.fillStyle = '#3a78c9'; ctx.beginPath(); ctx.arc(cssW * 0.8, cssH * 0.22, 22, 0, 7); ctx.fill(); ctx.fillStyle = '#4caf6a'; ctx.beginPath(); ctx.arc(cssW * 0.8 - 6, cssH * 0.22 - 4, 8, 0, 7); ctx.fill(); }
+    if (ST.sun) { ctx.fillStyle = 'rgba(255,240,170,.35)'; ctx.beginPath(); ctx.arc(cssW * 0.2, cssH * 0.2, 34, 0, 7); ctx.fill(); ctx.fillStyle = '#fff2a8'; ctx.beginPath(); ctx.arc(cssW * 0.2, cssH * 0.2, 22, 0, 7); ctx.fill(); }
+    ctx.fillStyle = 'rgba(255,255,255,.7)';
+    for (const c of clouds) {
+      const sx = (c.x - camX * 0.5) * S0, sy = offY + c.y * S0, w = c.w * S0;
+      if (sx < -w * 2 || sx > cssW + w) continue;
+      ctx.beginPath(); ctx.ellipse(sx, sy, w, w * 0.28, 0, 0, 7); ctx.ellipse(sx - w * 0.4, sy - w * 0.12, w * 0.5, w * 0.25, 0, 0, 7); ctx.ellipse(sx + w * 0.4, sy - w * 0.08, w * 0.5, w * 0.22, 0, 0, 7); ctx.fill();
+    }
+    // world
+    const sh = shake > 0.3 ? shake : 0, k = S0 * dpr;
+    ctx.setTransform(k, 0, 0, k, -camX * k + rnd(-sh, sh), offY * dpr + rnd(-sh, sh));
     ctx.drawImage(tc, 0, 0);
+    for (const d of decor) if (d.x > camX - 20 && d.x < camX + vw + 20) drawDecor(d);
     tanks.forEach(drawTank);
-    const pl = tanks[0];
-    if (state === 'aim' && turn === 0) {
-      const pv = pivot(pl), a = pl.ang * Math.PI / 180, L = BARREL + pl.pow * 0.9;
+    if (state === 'aim' && teams[cur.team].human) {
+      const pv = pivot(cur), a = cur.ang * Math.PI / 180, L = BARREL + cur.pow * 0.9;
       ctx.setLineDash([3, 6]); ctx.strokeStyle = 'rgba(255,255,255,.8)'; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.moveTo(pv.x, pv.y); ctx.lineTo(pv.x + Math.cos(a) * L, pv.y - Math.sin(a) * L); ctx.stroke();
       ctx.setLineDash([]);
@@ -339,15 +651,39 @@
     }
     for (const p of particles) { ctx.globalAlpha = Math.min(1, p.life / 15); ctx.fillStyle = p.col; ctx.fillRect(p.x, p.y, p.size, p.size); }
     ctx.globalAlpha = 1;
-    ctx.restore();
-    // HUD
-    ctx.fillStyle = '#fff'; ctx.font = 'bold 14px system-ui, sans-serif';
-    ctx.textAlign = 'left';
-    if (state !== 'over') ctx.fillText(turn === 0 ? 'Your turn' : 'Enemy turn', 10, 20);
-    if (turn === 1 && state === 'aim') { ctx.textAlign = 'right'; ctx.fillText(`Enemy: ${Math.round(tanks[1].ang)}° / ${Math.round(tanks[1].pow)}`, W - 10, 20); }
-    ctx.textAlign = 'center';
+    if (ST.water) {
+      ctx.fillStyle = 'rgba(40,110,200,.55)'; ctx.fillRect(0, waterY, W, H - waterY);
+      ctx.strokeStyle = 'rgba(200,230,255,.8)'; ctx.lineWidth = 1.5; ctx.beginPath();
+      for (let x = Math.max(0, camX - 10); x < Math.min(W, camX + vw + 10); x += 6) { const y = waterY + Math.sin(tick / 15 + x / 14) * 1.5; x === Math.max(0, camX - 10) ? ctx.moveTo(x, y) : ctx.lineTo(x, y); }
+      ctx.stroke();
+    }
+    // HUD (screen space)
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    for (const p of projectiles) {
+      const sx = (p.x - camX) * S0, sy = offY + p.y * S0;
+      if (sy < 12 && sx > 0 && sx < cssW) {
+        ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.moveTo(sx - 5, 14); ctx.lineTo(sx + 5, 14); ctx.lineTo(sx, 6); ctx.fill();
+      }
+    }
+    if (flash > 0.02) { ctx.fillStyle = `rgba(255,255,255,${flash * 0.8})`; ctx.fillRect(0, 0, cssW, cssH); }
+    ctx.font = 'bold 13px system-ui, sans-serif'; ctx.fillStyle = '#fff';
+    const tm = teams[cur.team];
+    if (state !== 'over') {
+      ctx.fillStyle = tm.col; ctx.fillRect(8, 8, 10, 10);
+      ctx.fillStyle = '#fff'; ctx.textAlign = 'left';
+      const role = !tm.human ? 'CPU' : cfg.humans === 1 ? 'you' : 'player ' + (tm.i + 1);
+      ctx.fillText(`${tm.name} · ${role}`, 24, 18);
+      if (!tm.human && state === 'aim') ctx.fillText(`${Math.round(cur.ang)}° / ${Math.round(cur.pow)}`, 24, 35);
+    }
+    ctx.textAlign = 'right';
     const n = Math.min(5, Math.ceil(Math.abs(wind) / 0.003));
-    ctx.fillText('Wind ' + (n ? (wind < 0 ? '◀' : '▶').repeat(n) : '–'), W / 2, 20);
+    ctx.fillText('Wind ' + (n ? (wind < 0 ? '◀' : '▶').repeat(n) : '–'), cssW - 8, 18);
+    if (W * S0 > cssW + 1) {   // minimap
+      const mx = 8, mw = cssW - 16, my = 44;
+      ctx.fillStyle = 'rgba(0,0,0,.4)'; ctx.fillRect(mx, my, mw, 6);
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.strokeRect(mx + camX / W * mw, my, vw / W * mw, 6);
+      for (const t of tanks) if (!t.dead) { ctx.fillStyle = t.col; ctx.fillRect(mx + t.x / W * mw - 1.5, my + 1, 3, 4); }
+    }
   }
   let last = performance.now(), acc = 0;
   function frame(ts) {
@@ -356,28 +692,27 @@
     draw(); requestAnimationFrame(frame);
   }
 
-  // --- UI ---
-  const can = () => state === 'aim' && turn === 0;
-  const wbtns = {};
-  for (const k of SELECTABLE) {
-    const b = document.createElement('button'); b.className = 'wbtn';
-    b.innerHTML = `<span>${WEAPONS[k].name}</span><small></small>`;
-    b.onclick = () => { if (can()) { tanks[0].weapon = k; updateUI(); } };
-    $('weapons').appendChild(b); wbtns[k] = b;
+  // ---------- controls ----------
+  const can = () => !!tanks && state === 'aim' && teams[cur.team].human;
+  function cycleWeapon(d) {
+    if (!can()) return;
+    const list = RULES[cfg.rules].weapons;
+    let i = list.indexOf(cur.weapon);
+    for (let n = 0; n < list.length; n++) { i = (i + d + list.length) % list.length; if (cur.ammo[list[i]] > 0) break; }
+    cur.weapon = list[i]; updateUI();
   }
   function updateUI() {
-    const pl = tanks[0], on = can();
-    $('ang').value = pl.ang; $('angv').textContent = pl.ang + '°';
-    $('pow').value = pl.pow; $('powv').textContent = pl.pow;
-    for (const k of SELECTABLE) {
-      wbtns[k].classList.toggle('sel', pl.weapon === k);
-      wbtns[k].disabled = !on || pl.ammo[k] <= 0;
-      wbtns[k].querySelector('small').textContent = pl.ammo[k] === Infinity ? '∞' : pl.ammo[k];
-    }
-    for (const id of ['ang', 'pow', 'angm', 'angp', 'powm', 'powp', 'left', 'right', 'fire']) $(id).disabled = !on;
+    if (!tanks) return;
+    const on = can();
+    $('ang').value = Math.round(cur.ang); $('angv').textContent = Math.round(cur.ang) + '°';
+    $('pow').value = Math.round(cur.pow); $('powv').textContent = Math.round(cur.pow);
+    const list = RULES[cfg.rules].weapons, w = WEAPONS[cur.weapon], a = cur.ammo[cur.weapon];
+    $('wrow').hidden = list.length < 2;
+    $('wname').textContent = `${w.name} ${a === Infinity ? '∞' : '×' + a}`;
+    for (const id of ['ang', 'pow', 'angm', 'angp', 'powm', 'powp', 'left', 'right', 'fire', 'wprev', 'wnext']) $(id).disabled = !on;
     $('fuelbar').style.width = fuel / FUEL * 100 + '%';
   }
-  const adj = (key, d) => { if (!can()) return; const t = tanks[0], hi = key === 'ang' ? 180 : 100, lo = key === 'ang' ? 0 : 10; t[key] = clamp(t[key] + d, lo, hi); updateUI(); };
+  const adj = (key, d) => { if (!can()) return; cur[key] = clamp(Math.round(cur[key]) + d, key === 'ang' ? 0 : 10, key === 'ang' ? 180 : 100); updateUI(); };
   function hold(el, fn, stop) {
     let to, iv;
     const end = () => { clearTimeout(to); clearInterval(iv); stop && stop(); };
@@ -388,20 +723,61 @@
   hold($('powm'), () => adj('pow', -1)); hold($('powp'), () => adj('pow', 1));
   hold($('left'), () => { if (can()) moveDir = -1; }, () => { moveDir = 0; });
   hold($('right'), () => { if (can()) moveDir = 1; }, () => { moveDir = 0; });
-  $('ang').oninput = e => { if (can()) { tanks[0].ang = +e.target.value; updateUI(); } };
-  $('pow').oninput = e => { if (can()) { tanks[0].pow = +e.target.value; updateUI(); } };
+  $('wprev').onclick = () => cycleWeapon(-1); $('wnext').onclick = () => cycleWeapon(1);
+  $('ang').oninput = e => { if (can()) { cur.ang = +e.target.value; updateUI(); } };
+  $('pow').oninput = e => { if (can()) { cur.pow = +e.target.value; updateUI(); } };
   $('fire').onclick = () => { if (can()) fire(); };
-  $('again').onclick = newGame;
   addEventListener('keydown', e => {
+    if (!$('menu').hidden) return;
     const s = e.shiftKey ? 5 : 1;
     if (e.key === 'ArrowLeft') adj('ang', s); else if (e.key === 'ArrowRight') adj('ang', -s);
     else if (e.key === 'ArrowUp') adj('pow', s); else if (e.key === 'ArrowDown') adj('pow', -s);
-    else if (e.key === ' ' || e.key === 'Enter') { if (can()) { e.preventDefault(); fire(); } }
+    else if (e.key === 'Tab') cycleWeapon(e.shiftKey ? -1 : 1);
+    else if (e.key === ' ' || e.key === 'Enter') { if (can()) fire(); }
     else return;
     e.preventDefault();
   });
 
-  newGame();
+  // camera drag / double-tap to recentre
+  let drag = null, lastTap = 0;
+  cv.addEventListener('pointerdown', e => { drag = { x: e.clientX, moved: 0 }; cv.setPointerCapture(e.pointerId); });
+  cv.addEventListener('pointermove', e => {
+    if (!drag) return;
+    const dx = e.clientX - drag.x; drag.x = e.clientX; drag.moved += Math.abs(dx);
+    if (drag.moved > 6) { camManual = true; camX -= dx / S0; clampCam(); }
+  });
+  const dragEnd = () => {
+    if (drag && drag.moved <= 6) {
+      const now = performance.now();
+      if (now - lastTap < 350 && cur) { camManual = false; camFocus = cur.x; }
+      lastTap = now;
+    }
+    drag = null;
+  };
+  cv.addEventListener('pointerup', dragEnd); cv.addEventListener('pointercancel', () => { drag = null; });
+
+  // ---------- menu ----------
+  const optsEl = $('opts');
+  for (const o of OPTIONS) {
+    const box = document.createElement('div'); box.className = 'opt';
+    box.innerHTML = `<div>${o.label}</div><div class="seg"></div>` + (o.hint ? '<div class="hint"></div>' : '');
+    const seg = box.querySelector('.seg'), hint = box.querySelector('.hint'), btns = [];
+    const refresh = () => { btns.forEach(([b, v]) => b.classList.toggle('on', cfg[o.key] === v)); if (hint) hint.textContent = o.hint(cfg[o.key]); };
+    for (const [v, label] of o.choices) {
+      const b = document.createElement('button'); b.textContent = label;
+      b.onclick = () => { cfg[o.key] = v; refresh(); };
+      seg.appendChild(b); btns.push([b, v]);
+    }
+    refresh(); optsEl.appendChild(box);
+  }
+  $('start').onclick = startGame;
+  $('again').onclick = startGame;
+  $('tomenu').onclick = () => { $('end').hidden = true; $('menu').hidden = false; };
+  $('menuBtn').onclick = () => { $('menu').hidden = false; };
+
+  new ResizeObserver(resize).observe(cv);
+  addEventListener('resize', resize);
+  resize();
   requestAnimationFrame(frame);
 })();
 </script>
