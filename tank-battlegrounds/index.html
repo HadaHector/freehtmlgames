@@ -28,13 +28,12 @@
 <!-- strategy map -->
 <div id="mapScreen" hidden>
   <div id="mapMain">
-    <div id="mapBar"><div id="players"></div><div id="toast"></div></div>
+    <div id="mapBar"><div id="players"></div><div id="toast"></div><div id="stock"></div></div>
     <div id="gridWrap"><div id="grid"></div></div>
   </div>
   <div id="mapPanel">
     <div id="cellInfo"></div>
     <div class="row" id="sendRow"><label>Send</label><button class="step" id="sendm">−</button><span class="val" id="sendv"></span><button class="step" id="sendp">+</button></div>
-    <div class="row" id="modeRow"><button id="modeMove">🚚 Move / attack</button><button id="modeArty">🎯 Artillery</button></div>
     <button class="big go" id="endTurn">End turn</button>
     <div class="links"><button id="mapMenu">☰ Menu</button><button class="ic muteBtn" title="Sound"></button><button class="ic fsBtn" title="Fullscreen">⛶</button><a href="../">← All games</a></div>
   </div>
@@ -47,6 +46,7 @@
     <div class="row"><label>Angle</label><button class="step" id="angm">↶</button><input type="range" id="ang" min="0" max="180" step="1"><button class="step" id="angp">↷</button><span class="val" id="angv"></span></div>
     <div class="row"><label>Power</label><button class="step" id="powm">−</button><input type="range" id="pow" min="10" max="100" step="1"><button class="step" id="powp">+</button><span class="val" id="powv"></span></div>
     <div class="row" id="wrow"><label>Weapon</label><button class="step" id="wprev">◀</button><div id="wname"></div><button class="step" id="wnext">▶</button></div>
+    <div id="wnote"></div>
     <div class="row">
       <button class="step" id="left">◀</button><button class="step" id="right">▶</button>
       <div id="fuel"><div id="fuelbar"></div></div>

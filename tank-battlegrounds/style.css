@@ -34,7 +34,7 @@ input { font: inherit; color: inherit; background: #151a24; border: 1px solid #3
 .seedrow { margin-bottom: 14px; }
 .seg { display: flex; flex-wrap: wrap; gap: 6px; }
 .seg button { padding: 8px 12px; font-size: 14px; }
-.seg button.on, #modeRow button.on { border-color: #ffd54a; background: #3a3a22; }
+.seg button.on { border-color: #ffd54a; background: #3a3a22; }
 .hint { font-size: 12px; color: #889; margin-top: 4px; min-height: 15px; }
 #end .card, #dialog .card, #over .card { max-width: 340px; animation: pop .4s cubic-bezier(.2,1.6,.4,1); }
 #end h2, #over h2 { font-size: 30px; }
@@ -53,6 +53,8 @@ input { font: inherit; color: inherit; background: #151a24; border: 1px solid #3
 .chip.cur { border-color: #ffd54a; }
 .chip.dead { opacity: .4; text-decoration: line-through; }
 #toast { color: #cde; min-height: 18px; }
+#stock { color: #9ab; font-size: 12px; min-height: 15px; }
+#wnote { font-size: 12px; color: #fc8; min-height: 15px; text-align: center; margin-top: -4px; }
 #gridWrap { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; }
 #grid { display: grid; grid-template-columns: repeat(var(--cols), 1fr); grid-template-rows: repeat(var(--rows), 1fr); gap: 2px; }
 .cell { position: relative; border-radius: 4px; overflow: hidden; font-size: calc(var(--cs) * .3); }
@@ -70,13 +72,10 @@ input { font: inherit; color: inherit; background: #151a24; border: 1px solid #3
 .cell.sel { box-shadow: inset 0 0 0 3px #ffd54a, 0 0 0 2px #ffd54a; z-index: 2; }
 .cell.t-move { box-shadow: inset 0 0 0 3px #6f6; }
 .cell.t-attack { box-shadow: inset 0 0 0 3px #f55; }
-.cell.t-arty { box-shadow: inset 0 0 0 3px #fa3; }
 .cell.flash { filter: brightness(1.6); }
-.cell.fired .bld { opacity: .4; }
 #mapPanel { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
 #cellInfo { font-size: 13px; color: #cde; min-height: 52px; line-height: 1.4; }
 .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; }
-#modeRow button { flex: 1; padding: 8px 4px; font-size: 14px; }
 #sendRow .val { width: 36px; font-size: 18px; font-weight: bold; }
 
 /* ---------- battle ---------- */

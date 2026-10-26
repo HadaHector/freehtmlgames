@@ -33,7 +33,7 @@ export function createMapView(gridEl, wrapEl) {
     gridEl.style.setProperty('--cs', cs + 'px');
   };
 
-  /** ui = { selected, targets: Map(cell -> 'move'|'attack'|'arty'), flash: [cells], actors: Set(cells) } */
+  /** ui = { selected, targets: Map(cell -> 'move'|'attack'), flash: [cells], actors: Set(cells) } */
   view.render = ui => {
     for (const c of map.cells) {
       if (c.type !== 'land') continue;
@@ -47,9 +47,7 @@ export function createMapView(gridEl, wrapEl) {
       const t = ui.targets.get(c);
       el.classList.toggle('t-move', t === 'move');
       el.classList.toggle('t-attack', t === 'attack');
-      el.classList.toggle('t-arty', t === 'arty');
       el.classList.toggle('flash', ui.flash.includes(c));
-      el.classList.toggle('fired', c.building === 'artillery' && c.fired);
     }
   };
   new ResizeObserver(view.fit).observe(wrapEl);

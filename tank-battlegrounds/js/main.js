@@ -1,14 +1,14 @@
 // Screen flow: menu -> strategy map <-> battles.
 import { $, sleep, hashSeed } from './util.js';
 import { sfx, unlockAudio, wireCommonButtons } from './audio.js';
-import { RULES } from './weapons.js';
+import { RULES, WEAPONS } from './weapons.js';
 import { BIOMES } from './biomes.js';
 import * as M from './map.js';
 import { aiTurn } from './mapai.js';
 import { createMapView } from './mapview.js';
 import { startBattle, stopBattle } from './battle.js';
 
-const VERSION = '0.2.0';
+const VERSION = '0.3.0';
 const WATER = { low: 0.1, normal: 0.2, high: 0.3 };
 
 // ---------- menu ----------
@@ -61,7 +61,7 @@ function saveGame() {
   if (!map || map.over) return;
   try {
     localStorage.setItem(SAVE_KEY, JSON.stringify({
-      v: 1, cfg, current,
+      v: 2, cfg, current,
       map: { w: map.w, h: map.h, seed: map.seed, round: map.round, cells: map.cells,
              players: map.players.map(p => ({ ...p, capital: p.capital.idx })) },
     }));
@@ -72,7 +72,7 @@ function clearSave() { try { localStorage.removeItem(SAVE_KEY); } catch (e) {} r
 function readSave() {
   try {
     const s = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null');
-    if (!s || s.v !== 1 || s.map.cells.length !== s.map.w * s.map.h) return null;
+    if (!s || s.v !== 2 || s.map.cells.length !== s.map.w * s.map.h) return null;
     s.map.players.forEach(p => { p.capital = s.map.cells[p.capital]; });
     s.map.over = false;
     return s;
@@ -94,7 +94,7 @@ function continueGame() {
 // ---------- session ----------
 const view = createMapView($('grid'), $('gridWrap'));
 let map = null, runId = 0, current = 0, humanDone = null, busy = false, sendN = 1, dialogResolve = null;
-const ui = { selected: null, mode: 'move', targets: new Map(), flash: [], actors: new Set() };
+const ui = { selected: null, targets: new Map(), flash: [], actors: new Set() };
 const fast = () => !map.players.some(p => p.human);
 
 function startCampaign() {
@@ -104,7 +104,7 @@ function startCampaign() {
   try { localStorage.setItem('tank-battlegrounds.cfg', JSON.stringify(cfg)); } catch (e) {}
   const [w, h] = cfg.size.split('x').map(Number);
   if (readSave() && !confirm('Start a new game? Your saved game will be replaced.')) return;
-  beginGame(M.generateMap({ w, h, players: cfg.players, humans: cfg.humans, seed: cfg.seed, water: WATER[cfg.water] }), -1);
+  beginGame(M.generateMap({ w, h, players: cfg.players, humans: cfg.humans, seed: cfg.seed, water: WATER[cfg.water], rules: cfg.rules }), -1);
 }
 
 /** resumeAt: index of the player whose turn it is, or -1 for a fresh game. */
@@ -132,16 +132,15 @@ async function loop(id, resumeAt) {
     map,
     active: () => id === runId && !map.over,
     move: async (pid, src, dst, n) => { await doMove(pid, src, dst, n); await sleep(fast() ? 40 : 350); },
-    fire: async (pid, src, t) => { await doFire(pid, src, t); await sleep(fast() ? 40 : 350); },
   };
   let from = Math.max(0, resumeAt), resumed = resumeAt >= 0;
   while (id === runId && !map.over) {
     for (const p of map.players.slice(from)) {
       if (id !== runId || map.over) return;
       if (!p.alive) continue;
-      const made = resumed ? 0 : M.startTurn(map, p.id);
+      const made = resumed ? null : M.startTurn(map, p.id, cfg.rules);
       current = p.id; clearSel();
-      toast(`Round ${map.round} · ${p.name}${p.human ? '' : ' (CPU)'}'s turn${resumed ? ' · resumed' : made ? ` · +${made} tank${made > 1 ? 's' : ''}` : ''}`);
+      toast(`Round ${map.round} · ${p.name}${p.human ? '' : ' (CPU)'}'s turn${resumed ? ' · resumed' : gains(made)}`);
       resumed = false;
       saveGame(); refresh();
       if (p.human) await new Promise(res => { humanDone = res; refresh(); });
@@ -154,6 +153,13 @@ async function loop(id, resumeAt) {
 // ---------- actions (shared by humans and the CPU) ----------
 const plural = n => `${n} tank${n === 1 ? '' : 's'}`;
 const at = c => `(${c.x + 1},${c.y + 1})`;
+function gains(ctx) {
+  const parts = [];
+  if (ctx.tanks) parts.push(`+${plural(ctx.tanks)}`);
+  const n = {}; for (const k of ctx.ammo) n[k] = (n[k] || 0) + 1;
+  for (const k in n) parts.push(`+${n[k]} ${WEAPONS[k].name}`);
+  return parts.length ? ' · ' + parts.join(', ') : '';
+}
 function toast(t) { $('toast').textContent = t; }
 function flash(cells) { ui.flash = cells; refresh(); setTimeout(() => { ui.flash = []; if (map) refresh(); }, 600); }
 
@@ -167,14 +173,6 @@ async function doMove(pid, src, dst, n) {
   if (kind === 'battle') return fight(pid, src, dst, n);
   M.detach(src, n); M.arrive(map, pid, dst, n); sfx.blip();
   toast(kind === 'capture' ? `${p.name} takes ${at(dst)}` : `${p.name} moves ${plural(n)} to ${at(dst)}`);
-  afterAction();
-  return true;
-}
-
-async function doFire(pid, src, target) {
-  flash([src, target]); sfx.boom(40);
-  M.fireArtillery(src, target);
-  toast(`${map.players[pid].name}'s artillery hits ${at(target)}`);
   afterAction();
   return true;
 }
@@ -194,8 +192,10 @@ async function fight(pid, src, dst, n) {
   if (att.human || defHuman) {
     const buttons = [{ id: 'fight', label: '⚔ Fight it out', cls: 'go' }, { id: 'auto', label: '🎲 Auto-resolve' }];
     if (att.human) buttons.push({ id: 'cancel', label: 'Cancel' });
+    const guns = [att, defP].map(p => (p ? M.artilleryStrength(map, p.id, dst) : 0));
+    const support = guns.some(g => g) ? `\nArtillery support: ${att.name} ${guns[0]}, ${defP ? defP.name : 'neutral'} ${guns[1]}.` : '';
     const choice = await ask(`${att.name} attacks ${defP ? defP.name : 'the neutral garrison'}`,
-      `${plural(n)} against ${plural(dst.tanks)} at ${at(dst)}.`, buttons);
+      `${plural(n)} against ${plural(dst.tanks)} at ${at(dst)}.${support}`, buttons);
     if (id !== runId || choice === 'cancel') return false;
     play = choice === 'fight';
   }
@@ -207,15 +207,17 @@ async function fight(pid, src, dst, n) {
       left: { biome: src.biome, height: src.height }, right: { biome: dst.biome, height: dst.height },
       rules: cfg.rules, diff: cfg.diff, onMenu: () => { if (confirm('Leave this game and go back to the menu?')) backToMenu(); },
       teams: [
-        { name: att.name, col: att.col, label: roleOf(att), human: att.human, count: n, ammoMult: src.building === 'ammo' ? 2 : 1 },
+        { name: att.name, col: att.col, label: roleOf(att), human: att.human, count: n,
+          ammo: { ...att.ammo }, artillery: M.artilleryStrength(map, pid, dst) },
         { name: defP ? defP.name : 'Neutral', col: defP ? defP.col : '#9a9a9a', label: roleOf(defP), human: defHuman,
-          count: dst.tanks, ammoMult: dst.building === 'ammo' ? 2 : 1 },
+          count: dst.tanks, ammo: defP ? { ...defP.ammo } : {}, artillery: defP ? M.artilleryStrength(map, defP.id, dst) : 0 },
       ],
     };
     show('battle');
     res = await startBattle(setup);
     if (id !== runId || !res) return false;
     show('map');
+    att.ammo = res.ammoLeft[0]; if (defP) defP.ammo = res.ammoLeft[1];
   } else res = M.autoResolve(n, dst.tanks);
   const won = res.survivors[0] > 0 && res.survivors[1] === 0;
   M.applyBattle(map, pid, src, dst, n, res);
@@ -252,23 +254,20 @@ function endGame(r) {
 }
 
 // ---------- human input ----------
-function clearSel() { ui.selected = null; ui.targets = new Map(); ui.mode = 'move'; }
+function clearSel() { ui.selected = null; ui.targets = new Map(); }
 function computeTargets() {
   ui.targets = new Map();
   const c = ui.selected;
   if (!c || c.owner !== current || !humanDone || busy) return;
-  if (ui.mode === 'move' && M.sendable(c) > 0) {
-    for (const n of M.neighbors(map, c)) {
-      const kind = M.moveKind(current, n);
-      if (kind === 'move' && M.roomFor(current, n) <= 0) continue;
-      ui.targets.set(n, kind === 'battle' ? 'attack' : 'move');
-    }
-  } else if (ui.mode === 'arty') for (const t of M.artilleryTargets(map, current, c)) ui.targets.set(t, 'arty');
+  if (M.sendable(c) <= 0) return;
+  for (const n of M.neighbors(map, c)) {
+    const kind = M.moveKind(current, n);
+    if (kind === 'move' && M.roomFor(current, n) <= 0) continue;
+    ui.targets.set(n, kind === 'battle' ? 'attack' : 'move');
+  }
 }
 function select(c) {
   ui.selected = c;
-  const arty = M.artilleryTargets(map, current, c).length > 0;
-  ui.mode = M.sendable(c) > 0 || !arty ? 'move' : 'arty';
   sendN = M.sendable(c);
   computeTargets();
 }
@@ -276,9 +275,9 @@ view.onCell = async c => {
   sfx.blip();
   if (!humanDone || busy) { ui.selected = c; ui.targets = new Map(); refresh(); return; }
   if (ui.selected && ui.targets.has(c)) {
-    const src = ui.selected, mode = ui.mode;
+    const src = ui.selected;
     busy = true; refresh();
-    if (mode === 'arty') await doFire(current, src, c); else await doMove(current, src, c, sendN);
+    await doMove(current, src, c, sendN);
     busy = false;
     if (map && !map.over) { clearSel(); refresh(); }
     return;
@@ -288,8 +287,6 @@ view.onCell = async c => {
 };
 $('sendm').onclick = () => { sendN = Math.max(1, sendN - 1); refresh(); };
 $('sendp').onclick = () => { if (ui.selected) sendN = Math.min(M.sendable(ui.selected), sendN + 1); refresh(); };
-$('modeMove').onclick = () => { ui.mode = 'move'; computeTargets(); refresh(); };
-$('modeArty').onclick = () => { ui.mode = 'arty'; computeTargets(); refresh(); };
 $('endTurn').onclick = () => {
   if (!humanDone || busy) return;
   const r = humanDone; humanDone = null; clearSel(); refresh(); r();
@@ -301,7 +298,7 @@ function refresh() {
   if (!map) return;
   const myTurn = !!humanDone && !busy;
   ui.actors = new Set();
-  if (myTurn) for (const c of M.cellsOwned(map, current)) if (M.sendable(c) > 0 || M.artilleryTargets(map, current, c).length) ui.actors.add(c);
+  if (myTurn) for (const c of M.cellsOwned(map, current)) if (M.sendable(c) > 0) ui.actors.add(c);
   if (ui.selected && myTurn) computeTargets();
   view.render(ui);
 
@@ -317,15 +314,13 @@ function refresh() {
       (c.owner === current && myTurn ? ` (${M.sendable(c)} can move)` : '') +
       (b ? `<br>${b.icon} <b>${b.name}</b> — ${b.desc}` : '');
   }
-  const canSend = myTurn && c && c.owner === current && ui.mode === 'move' && M.sendable(c) > 0;
+  const canSend = myTurn && c && c.owner === current && M.sendable(c) > 0;
   $('sendRow').hidden = !canSend;
   if (canSend) { sendN = Math.max(1, Math.min(sendN, M.sendable(c))); $('sendv').textContent = sendN; }
-  const hasArty = myTurn && c && c.owner === current && c.building === 'artillery' && !c.fired;
-  $('modeRow').hidden = !hasArty;
-  if (hasArty) {
-    $('modeMove').classList.toggle('on', ui.mode === 'move'); $('modeArty').classList.toggle('on', ui.mode === 'arty');
-    $('modeMove').disabled = M.sendable(c) <= 0;
-  }
+  const viewer = map.players[current].human ? map.players[current] : map.players.find(p => p.human);
+  $('stock').textContent = viewer
+    ? 'Ammo: ' + (Object.entries(viewer.ammo).filter(([, n]) => n > 0).map(([k, n]) => `${WEAPONS[k].name} ${n}`).join(' · ') || 'none')
+    : '';
   $('endTurn').disabled = !myTurn;
 }
 

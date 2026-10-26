@@ -3,13 +3,14 @@
 //
 // setup = {
 //   seed, left: {biome, height}, right: {biome, height}, rules, diff,
-//   teams: [{name, col, label, human, count, ammoMult}, ...],   // [attacker (left), defender (right)]
+//   teams: [{name, col, label, human, count, ammo: {weapon: n}, artillery: n}, ...],   // [attacker (left), defender (right)]
+//   (ammo is a stockpile shared by the whole team; artillery = guns in range, 0 = no fire support)
 //   onMenu: () => void,
 // }
-// result = { survivors: [n, n], winner: 0 | 1 | -1 }
+// result = { survivors: [n, n], winner: 0 | 1 | -1, ammoLeft: [{weapon: n}, {weapon: n}] }
 import { $, clamp, rnd, pick, shuffle, makeRng } from './util.js';
 import { sfx, unlockAudio } from './audio.js';
-import { WEAPONS, RULES, AI_WEAPONS, SAFE, DIFF } from './weapons.js';
+import { WEAPONS, RULES, AI_WEAPONS, SAFE, DIFF, ART_FIRST_ROUND, ART_COOLDOWN } from './weapons.js';
 import { BIOMES } from './biomes.js';
 import { generateHeights, paintTerrain } from './terrain.js';
 
@@ -23,7 +24,7 @@ let mask = new Uint8Array(1);
 
 let B = null, running = false, resolveBattle = null, result = null;
 let ST, tanks, teams, cur, teamI, decor, clouds, projectiles, particles;
-let wind, state, fuel, settleT, ai, shake, flash, lastBoom, tick = 0, moveDir = 0;
+let wind, state, fuel, settleT, ai, shake, flash, lastBoom, tick = 0, moveDir = 0, round = 1;
 let endMode = null, endT = 0, rockets = [], sparks = [], ash = [], smoke = [];
 let camX = 0, camFocus = 0, camManual = false;
 let dpr = 1, cssW = 300, cssH = 200, S0 = 1, offY = 0, vw = 300, skyGrad;
@@ -101,11 +102,12 @@ function init() {
 
   teams = []; tanks = [];
   B.teams.forEach((t, i) => {
-    const tm = { i, name: t.name, col: t.col, label: t.label, human: t.human, tanks: [], next: 0, noise: DIFF[B.diff].n0 };
+    const pool = { shell: Infinity };   // one stockpile per team, shared by its tanks
+    for (const k of RULES[B.rules].weapons) if (k !== 'shell') pool[k] = k === 'artillery' ? 0 : (t.ammo[k] || 0);
+    const tm = { i, name: t.name, col: t.col, label: t.label, human: t.human, tanks: [], next: 0, noise: DIFF[B.diff].n0,
+                 pool, guns: t.artillery || 0, artNext: ART_FIRST_ROUND };
     for (let j = 0; j < t.count; j++) {
-      const ammo = {};
-      for (const k of RULES[B.rules].weapons) ammo[k] = WEAPONS[k].ammo === Infinity ? Infinity : WEAPONS[k].ammo * t.ammoMult;
-      const tank = { team: i, x: 0, y: 0, vy: 0, hp: 100, dead: false, ang: i ? 130 : 50, pow: 60, weapon: 'shell', ammo, col: t.col };
+      const tank = { team: i, x: 0, y: 0, vy: 0, hp: 100, dead: false, ang: i ? 130 : 50, pow: 60, weapon: 'shell', ammo: pool, col: t.col };
       tm.tanks.push(tank); tanks.push(tank);
     }
     teams.push(tm);
@@ -113,7 +115,7 @@ function init() {
   placeTanks();
   projectiles = []; particles = []; shake = 0; flash = 0; moveDir = 0; lastBoom = 0;
   endMode = null; endT = 0; rockets = []; sparks = []; ash = []; smoke = [];
-  wind = rnd(-0.012, 0.012); teamI = 0; cur = teams[0].tanks[0]; teams[0].next = 1;
+  wind = rnd(-0.012, 0.012); teamI = 0; round = 1; cur = teams[0].tanks[0]; teams[0].next = 1;
   resize();
   makeSky(); camX = cur.x - vw / 2; startTurn(false);
 }
@@ -133,7 +135,10 @@ const aliveTeam = tm => tm.tanks.some(t => !t.dead);
 function startTurn(drift = true) {
   if (drift) wind = clamp(wind + rnd(-0.006, 0.006), -0.015, 0.015);
   fuel = FUEL; state = 'aim'; camFocus = cur.x; camManual = false; moveDir = 0;
-  if (!teams[cur.team].human) aiPlan();
+  const tm = teams[cur.team];
+  if (tm.guns) tm.pool.artillery = round >= tm.artNext ? 1 : 0;
+  if (!(cur.ammo[cur.weapon] > 0)) cur.weapon = 'shell';
+  if (!tm.human) aiPlan();
   updateUI();
 }
 function endTurn() {
@@ -143,7 +148,8 @@ function endTurn() {
     state = 'over'; updateUI();
     const counts = teams.map(t => t.tanks.filter(k => !k.dead).length);
     const winner = counts[0] && !counts[1] ? 0 : counts[1] && !counts[0] ? 1 : -1;
-    result = { survivors: counts, winner };
+    const ammoLeft = teams.map(t => { const o = {}; for (const k in t.pool) if (k !== 'shell' && k !== 'artillery') o[k] = t.pool[k]; return o; });
+    result = { survivors: counts, winner, ammoLeft };
     let m;
     if (winner < 0) { m = '🤝 Mutual destruction!'; endMode = 'draw'; }
     else {
@@ -155,7 +161,9 @@ function endTurn() {
     setTimeout(() => { if (!running) return; $('msg').textContent = m; $('end').className = 'screen ' + endMode; $('end').hidden = false; }, 900);
     return;
   }
+  const prevTeam = teamI;
   do { teamI = (teamI + 1) % teams.length; } while (!aliveTeam(teams[teamI]));
+  if (teamI <= prevTeam) round++;
   const tm = teams[teamI];
   while (tm.tanks[tm.next % tm.tanks.length].dead) tm.next++;
   cur = tm.tanks[tm.next++ % tm.tanks.length];
@@ -211,6 +219,7 @@ function launch(t, ang, pow) {
 function fire() {
   const t = cur, w = WEAPONS[t.weapon];
   if (t.ammo[t.weapon] !== Infinity) t.ammo[t.weapon]--;
+  if (t.weapon === 'artillery') teams[t.team].artNext = round + ART_COOLDOWN;
   for (const da of t.weapon === 'triple' ? [-5, 0, 5] : [0]) {
     const p = launch(t, t.ang + da, t.pow);
     Object.assign(p, { type: t.weapon, trail: [], owner: t, bounces: 3, life: 0 });
@@ -268,10 +277,10 @@ function explode(p) {
       t.x = clamp(p.x, 15, W - 15); t.y = p.y - 2; t.vy = 0;
       burst(t.x, t.y - 8, 20, ['#c9f', '#fff']); sfx.tele(); break;
     }
-    case 'rain': {
-      const order = shuffle([0, 1, 2, 3, 4, 5, 6]);
-      order.forEach((o, i) => projectiles.push({ x: p.x + (i - 3) * 24 + rnd(-6, 6), y: -20 - o * 28, vx: 0, vy: 2, type: 'bomblet', trail: [], owner: p.owner, life: 0 }));
-      burst(p.x, p.y, 8, ['#f66', '#fff']); sfx.blip(); break;
+    case 'barrage': {   // artillery: the more guns in range, the bigger the barrage
+      const n = 6 + 4 * teams[p.owner.team].guns, order = shuffle([...Array(n).keys()]);
+      order.forEach((o, i) => projectiles.push({ x: p.x + (i - (n - 1) / 2) * 20 + rnd(-5, 5), y: -20 - o * 22, vx: 0, vy: 2, type: 'shellfall', trail: [], owner: p.owner, life: 0 }));
+      burst(p.x, p.y, 10, ['#f90', '#fff']); sfx.blip(); break;
     }
     case 'dig': {
       const l = Math.hypot(p.vx, p.vy) || 1, dx = p.vx / l, dy = p.vy / l, hit = new Set();
@@ -552,9 +561,11 @@ function frame(ts) {
 
 // ---------- controls ----------
 const can = () => running && state === 'aim' && teams[cur.team].human;
+/** Weapons this team can ever use (artillery only with guns in range). */
+const weaponList = () => RULES[B.rules].weapons.filter(k => k !== 'artillery' || teams[cur.team].guns > 0);
 function cycleWeapon(d) {
   if (!can()) return;
-  const list = RULES[B.rules].weapons;
+  const list = weaponList();
   let i = list.indexOf(cur.weapon);
   for (let n = 0; n < list.length; n++) { i = (i + d + list.length) % list.length; if (cur.ammo[list[i]] > 0) break; }
   cur.weapon = list[i]; sfx.blip(); updateUI();
@@ -564,9 +575,11 @@ function updateUI() {
   const on = can();
   $('ang').value = 180 - Math.round(cur.ang); $('angv').textContent = Math.round(cur.ang) + '°';
   $('pow').value = Math.round(cur.pow); $('powv').textContent = Math.round(cur.pow);
-  const list = RULES[B.rules].weapons, w = WEAPONS[cur.weapon], a = cur.ammo[cur.weapon];
+  const list = weaponList(), w = WEAPONS[cur.weapon], a = cur.ammo[cur.weapon], tm = teams[cur.team];
   $('wrow').hidden = list.length < 2;
   $('wname').textContent = `${w.name} ${a === Infinity ? '∞' : '×' + a}`;
+  $('wnote').textContent = !tm.guns ? '' : tm.pool.artillery ? `🎯 Artillery ready (${tm.guns} gun${tm.guns > 1 ? 's' : ''})`
+    : `🎯 Artillery ready in ${Math.max(1, tm.artNext - round)} round${tm.artNext - round > 1 ? 's' : ''}`;
   for (const id of ['ang', 'pow', 'angm', 'angp', 'powm', 'powp', 'left', 'right', 'fire', 'wprev', 'wnext']) $(id).disabled = !on;
   $('fuelbar').style.width = fuel / FUEL * 100 + '%';
 }

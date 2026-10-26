@@ -1,6 +1,6 @@
 // Computer players on the strategy map. Works through the `game` actions so every
 // move goes through the same rules (and battles) as a human move.
-import { neighbors, sendable, cellsOwned, moveKind, roomFor, artilleryTargets } from './map.js';
+import { neighbors, sendable, cellsOwned, moveKind, roomFor } from './map.js';
 import { shuffle } from './util.js';
 
 function distanceField(map, id) {
@@ -14,16 +14,10 @@ function distanceField(map, id) {
   return d;
 }
 
-const artyScore = t => (t.building === 'capital' ? 40 : 0) + (t.tanks === 1 ? 10 : 0) + (t.owner >= 0 ? 5 : 0);
 const prize = t => (t.building ? 6 : 0) + (t.building === 'capital' ? 100 : 0) + (t.owner >= 0 ? 5 : 0);
 
 export async function aiTurn(game, id) {
   const { map } = game;
-  for (const c of cellsOwned(map, id)) {
-    if (!game.active()) return;
-    const targets = artilleryTargets(map, id, c).sort((a, b) => artyScore(b) - artyScore(a));
-    if (targets.length) await game.fire(id, c, targets[0]);
-  }
   const field = distanceField(map, id);
   for (const c of shuffle(cellsOwned(map, id).filter(k => sendable(k) > 0))) {
     if (!game.active()) return;
