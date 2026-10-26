@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#1b1f2a">
+<title>Tank Battlegrounds</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <canvas id="c"></canvas>
+  <div id="panel">
+    <div class="row"><label>Angle</label><button class="step" id="angm">↶</button><input type="range" id="ang" min="0" max="180" step="1"><button class="step" id="angp">↷</button><span class="val" id="angv"></span></div>
+    <div class="row"><label>Power</label><button class="step" id="powm">−</button><input type="range" id="pow" min="10" max="100" step="1"><button class="step" id="powp">+</button><span class="val" id="powv"></span></div>
+    <div class="row" id="wrow"><label>Weapon</label><button class="step" id="wprev">◀</button><div id="wname"></div><button class="step" id="wnext">▶</button></div>
+    <div class="row">
+      <button class="step" id="left">◀</button><button class="step" id="right">▶</button>
+      <div id="fuel"><div id="fuelbar"></div></div>
+      <button id="fire">FIRE</button>
+    </div>
+    <div class="links"><button id="menuBtn">☰ Menu</button><button class="ic muteBtn" title="Sound"></button><button class="ic fsBtn" title="Fullscreen">⛶</button><a href="../">← All games</a></div>
+  </div>
+</div>
+
+<div id="menu" class="screen">
+  <div class="card">
+    <h1>💥 Tank Battlegrounds</h1>
+    <div class="ver">v0.1.0</div>
+    <div class="opts" id="opts"></div>
+    <button class="big" id="start">Start game</button>
+    <div class="links"><button class="ic muteBtn" title="Sound"></button><button class="ic fsBtn" title="Fullscreen">⛶ Fullscreen</button><a href="../">← All games</a></div>
+  </div>
+</div>
+
+<div id="end" class="screen" hidden>
+  <div class="card">
+    <h2 id="msg"></h2>
+    <button class="big" id="again">Play again</button>
+    <button class="big" id="tomenu" style="background:#2c3344;border-color:#3d465c">Menu</button>
+  </div>
+</div>
+
+<script src="game.js"></script>
+</body>
+</html>
