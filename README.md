@@ -21,3 +21,11 @@ my-game/
 
 Pushing to `main` deploys the site via GitHub Pages (`.github/workflows/pages.yml`).
 Enable it once under **Settings → Pages → Source: GitHub Actions**.
+
+## Local testing
+
+Tank Battlegrounds uses ES modules, which browsers won't load from `file://`. Serve the repo instead:
+
+```
+python3 -m http.server 8000   # then open http://localhost:8000/tank-battlegrounds/
+```
