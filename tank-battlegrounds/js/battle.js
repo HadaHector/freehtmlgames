@@ -4,6 +4,7 @@
 // setup = {
 //   seed, left: {biome, height}, right: {biome, height}, diff,
 //   teams: [{name, col, label, human, unit, diff, count, ammo: {weapon: n}, artillery: n}, ...],   // [attacker (left), defender (right)]
+//   onTurn(snapshot) is called at the start of every turn so the caller can save the battle.
 //   (ammo is a stockpile shared by the whole team; artillery = guns in range, 0 = no fire support)
 //   onMenu: () => void,
 // }
@@ -59,12 +60,12 @@ function placeDecor(rng, L, R) {
 }
 
 // ---------- setup ----------
-export function startBattle(setup) {
+export function startBattle(setup, snap = null) {
   return new Promise(resolve => {
     B = setup; resolveBattle = resolve; result = null;
     $('end').hidden = true; $('end').className = 'screen';
     running = true;
-    init();
+    init(snap);
     last = performance.now(); acc = 0;
     requestAnimationFrame(frame);
   });
@@ -75,7 +76,7 @@ export function stopBattle() {
 }
 export const battleActive = () => running;
 
-function init() {
+function init(snap) {
   const [ta, td] = B.teams;
   W = clamp(Math.round(560 + 130 * (ta.count + td.count)), 800, 2400);
   K = 0.115 * Math.sqrt(W / 800);
@@ -107,7 +108,23 @@ function init() {
   endMode = null; endT = 0; rockets = []; sparks = []; ash = []; smoke = [];
   wind = rnd(-0.012, 0.012); teamI = 0; round = 1; cur = teams[0].tanks[0]; teams[0].next = 1;
   resize();
+  if (snap) restore(snap);
   makeSky(); camX = cur.x - vw / 2; startTurn(false);
+}
+
+/** What is needed to carry on a battle later (terrain is rebuilt from the seed, craters are not kept). */
+function snapshot() {
+  return {
+    round, teamI, wind, cur: tanks.indexOf(cur),
+    teams: teams.map(t => ({ next: t.next, noise: t.noise, artNext: t.artNext,
+                             pool: Object.fromEntries(Object.entries(t.pool).filter(([, v]) => Number.isFinite(v))) })),
+    tanks: tanks.map(t => ({ x: t.x, y: t.y, hp: t.hp, dead: t.dead, ang: t.ang, pow: t.pow, weapon: t.weapon, last: t.last || null })),
+  };
+}
+function restore(s) {
+  s.tanks.forEach((o, i) => Object.assign(tanks[i], o, { vy: 0 }));
+  s.teams.forEach((o, i) => { const t = teams[i]; t.next = o.next; t.noise = o.noise; t.artNext = o.artNext; Object.assign(t.pool, o.pool); });
+  teamI = s.teamI; round = s.round; wind = s.wind; cur = tanks[s.cur];
 }
 function surfaceAt(x, s = 1) { return Math.min(...[-12, 0, 12].map(o => surfaceBelow(x + o * s, 0))); }
 function placeTanks() {
@@ -130,6 +147,7 @@ function startTurn(drift = true) {
   if (!selectable(cur, cur.weapon)) cur.weapon = home(cur);
   if (!tm.human) aiPlan();
   updateUI();
+  if (B.onTurn) B.onTurn(snapshot());
 }
 function endTurn() {
   const alive = teams.filter(aliveTeam);

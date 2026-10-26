@@ -9,7 +9,7 @@ import { aiTurn } from './mapai.js';
 import { createMapView } from './mapview.js';
 import { startBattle, stopBattle } from './battle.js';
 
-const VERSION = '0.7.0';
+const VERSION = '0.8.0';
 const WATER = { low: 0.1, normal: 0.2, high: 0.3 };
 
 // ---------- menu ----------
@@ -56,13 +56,16 @@ function show(name) {
 
 // ---------- save / continue ----------
 // The strategy state is saved after every action. A battle in progress is not saved (its
-// terrain damage isn't either): leaving mid-battle returns to the state before the attack.
+// A battle in progress is saved at the start of each of its turns (tanks, HP, ammo, whose turn); the
+// terrain is rebuilt from the seed, so craters are not saved.
 const SAVE_KEY = 'tank-battlegrounds.save';
 function saveGame() {
   if (!map || map.over) return;
   try {
     localStorage.setItem(SAVE_KEY, JSON.stringify({
       v: 3, cfg, current,
+      battle: activeBattle && { pid: activeBattle.pid, src: activeBattle.src.idx, dst: activeBattle.dst.idx, n: activeBattle.n,
+                                setup: activeBattle.setup, snap: activeBattle.snap },
       map: { w: map.w, h: map.h, seed: map.seed, round: map.round, cells: map.cells,
              players: map.players.map(p => ({ ...p, capital: p.capital.idx })) },
     }));
@@ -77,25 +80,26 @@ function readSave() {
     s.map.players.forEach(p => { p.capital = s.map.cells[p.capital]; });
     s.map.cells.forEach(c => { c.unit = c.unit || 'tank'; });
     s.map.over = false;
+    if (s.battle) { const b = s.battle; b.src = s.map.cells[b.src]; b.dst = s.map.cells[b.dst]; }
     return s;
   } catch (e) { return null; }
 }
 function refreshContinue() {
   const s = readSave();
   $('continueGame').hidden = !s;
-  if (s) $('continueGame').textContent = `▶ Continue: round ${s.map.round} · ${s.cfg.size.replace('x', '×')} · ${s.map.players[s.current].name}'s turn`;
+  if (s) $('continueGame').textContent = `▶ Continue: round ${s.map.round} · ${s.cfg.size.replace('x', '×')} · ${s.map.players[s.current].name}'s turn${s.battle ? ' · ⚔ battle' : ''}`;
 }
 function continueGame() {
   const s = readSave();
   if (!s) return;
   unlockAudio();
   Object.assign(cfg, s.cfg); buildOptions(); $('seed').value = cfg.seed;
-  beginGame(s.map, s.current);
+  beginGame(s.map, s.current, s.battle);
 }
 
 // ---------- session ----------
 const view = createMapView($('grid'), $('gridWrap'));
-let map = null, runId = 0, current = 0, humanDone = null, busy = false, sendN = 1, dialogResolve = null;
+let activeBattle = null, map = null, runId = 0, current = 0, humanDone = null, busy = false, sendN = 1, dialogResolve = null;
 const ui = { selected: null, targets: new Map(), flash: [], actors: new Set() };
 const fast = () => !map.players.some(p => p.human);
 
@@ -110,18 +114,21 @@ function startCampaign() {
 }
 
 /** resumeAt: index of the player whose turn it is, or -1 for a fresh game. */
-function beginGame(newMap, resumeAt) {
+/** resumeAt: index of the player whose turn it is, or -1 for a fresh game. pending: a saved battle to play on. */
+function beginGame(newMap, resumeAt, pending = null) {
   abort();
   map = newMap; map.over = false;
   const id = ++runId;
   $('over').hidden = true;
   show('map');
   view.build(map);
-  loop(id, resumeAt);
+  activeBattle = pending;
+  loop(id, resumeAt, pending);
 }
 
 function abort() {
   runId++;
+  activeBattle = null;
   stopBattle();
   if (dialogResolve) { const r = dialogResolve; dialogResolve = null; $('dialog').hidden = true; r('cancel'); }
   if (humanDone) { const r = humanDone; humanDone = null; r(); }
@@ -129,7 +136,7 @@ function abort() {
 }
 function backToMenu() { abort(); $('over').hidden = true; show('menu'); }
 
-async function loop(id, resumeAt) {
+async function loop(id, resumeAt, pending) {
   const game = {
     map,
     active: () => id === runId && !map.over,
@@ -145,6 +152,13 @@ async function loop(id, resumeAt) {
       toast(`Round ${map.round} · ${p.name}${p.human ? '' : ' (CPU)'}'s turn${resumed ? ' · resumed' : gains(made)}`);
       resumed = false;
       saveGame(); refresh();
+      if (pending) {   // the game was saved in the middle of a fight: play it on first
+        const b = pending; pending = null;
+        const res = await playBattle(b, b.snap);
+        if (id !== runId || !res) return;
+        show('map'); concludeFight(b.pid, b.src, b.dst, b.n, res, true);
+        if (map.over) return;
+      }
       if (p.human) await new Promise(res => { humanDone = res; refresh(); });
       else { await sleep(fast() ? 40 : 400); await aiTurn(game, p.id); }
     }
@@ -208,7 +222,7 @@ async function fight(pid, src, dst, n) {
     const setup = {
       seed: hashSeed(map.seed, src.idx, dst.idx),
       left: { biome: src.biome, height: src.height }, right: { biome: dst.biome, height: dst.height },
-      diff: cfg.diff, onMenu: () => { if (confirm('Leave this game and go back to the menu?')) backToMenu(); },
+      diff: cfg.diff,
       teams: [
         { name: att.name, col: att.col, label: roleOf(att), human: att.human, unit: 'tank', diff: cfg.diff, count: n,
           ammo: { ...att.ammo }, artillery: M.artilleryStrength(map, pid, dst) },
@@ -217,17 +231,32 @@ async function fight(pid, src, dst, n) {
           count: dst.tanks, ammo: defP ? { ...defP.ammo } : {}, artillery: defP ? M.artilleryStrength(map, defP.id, dst) : 0 },
       ],
     };
-    show('battle');
-    res = await startBattle(setup);
+    res = await playBattle({ pid, src, dst, n, setup });
     if (id !== runId || !res) return false;
     show('map');
-    att.ammo = res.ammoLeft[0]; if (defP) defP.ammo = res.ammoLeft[1];
   } else res = M.autoResolve(n, dst.tanks, dst.unit);
+  concludeFight(pid, src, dst, n, res, play);
+  return true;
+}
+
+/** Runs a battle on the battle screen; b = { pid, src, dst, n, setup }, snap resumes a saved one. */
+async function playBattle(b, snap) {
+  activeBattle = b;
+  b.setup.onMenu = () => { if (confirm('Leave this game and go back to the menu?')) backToMenu(); };
+  b.setup.onTurn = s => { if (activeBattle === b) { b.snap = s; saveGame(); } };
+  show('battle');
+  const res = await startBattle(b.setup, snap);
+  if (activeBattle === b) activeBattle = null;
+  return res;
+}
+
+function concludeFight(pid, src, dst, n, res, played) {
+  const att = map.players[pid], defP = dst.owner >= 0 ? map.players[dst.owner] : null;
+  if (played) { att.ammo = res.ammoLeft[0]; if (defP) defP.ammo = res.ammoLeft[1]; }
   const won = res.survivors[0] > 0 && res.survivors[1] === 0;
   M.applyBattle(map, pid, src, dst, n, res);
   toast(won ? `${att.name} captures ${at(dst)} (${plural(res.survivors[0])} left)` : `${att.name}'s attack on ${at(dst)} fails`);
   afterAction();
-  return true;
 }
 
 function ask(title, text, buttons) {
