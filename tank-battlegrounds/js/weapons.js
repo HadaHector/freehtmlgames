@@ -14,6 +14,7 @@ export const WEAPONS = {
   repair:    { name: 'Repair',    kind: 'tool',    heal: 50, col: '#5f5',    stock: true },   // used on yourself instead of shooting
   artillery: { name: 'Artillery', kind: 'barrage', r: 0,   dmg: 0,   col: '#f90' },
   scatter:   { name: 'Scatter',   kind: 'cluster', r: 22,  dmg: 20,  col: '#7ee0ff' },   // heavy tank's own ammo: splits into bomblets
+  debris:    { name: 'Debris',    kind: 'blast',   r: 10,  dmg: 8,   col: '#aaa' },   // pieces of a destroyed tank
   bomblet:   { name: 'Bomblet',   kind: 'blast',   r: 20,  dmg: 22,  col: '#7ee0ff' },
   shellfall: { name: 'Barrage',   kind: 'blast',   r: 26,  dmg: 32,  col: '#f90' },   // one shell of an artillery barrage
 };

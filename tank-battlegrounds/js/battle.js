@@ -189,7 +189,14 @@ function endTurn() {
 function hurt(t, amt) {
   if (t.dead) return;
   t.hp -= amt;
-  if (t.hp <= 0) { t.hp = 0; t.dead = true; burst(t.x, t.y - 8 * t.s, 50 * t.s, ['#ff9a3d', '#ffd54a', t.col, '#333']); shake = 10; sfx.die(); }
+  if (t.hp <= 0) {
+    t.hp = 0; t.dead = true; burst(t.x, t.y - 8 * t.s, 50 * t.s, ['#ff9a3d', '#ffd54a', t.col, '#333']); shake = 10; sfx.die();
+    // the wreck bursts into a few small pieces that fly a short way and go off (like a tiny cluster bomb)
+    for (let i = 0, n = Math.round(5 + 3 * (t.s - 1)); i < n; i++) {
+      const a = -rnd(0.15, 0.85) * Math.PI, v = rnd(1.5, 3.2);
+      projectiles.push({ x: t.x, y: t.y - 8 * t.s, vx: Math.cos(a) * v, vy: Math.sin(a) * v, type: 'debris', trail: [], owner: t, life: 0 });
+    }
+  }
 }
 function settle(t) {
   let s = Infinity;
@@ -374,7 +381,7 @@ function update() {
       if (moveDir && fuel > 0 && moveTank(cur, moveDir)) { fuel--; $('fuelbar').style.width = fuel / FUEL * 100 + '%'; }
     } else aiUpdate();
   }
-  if (state === 'fly') updateProjectiles();
+  if (projectiles.length) updateProjectiles();
   for (const p of particles) { p.x += p.vx; p.y += p.vy; p.vy += 0.15; p.life--; }
   for (const f of floaters) { f.y -= 0.4; f.life--; }
   floaters = floaters.filter(f => f.life > 0);
@@ -389,7 +396,7 @@ function update() {
   });
   if (state === 'fly' && !projectiles.length) { state = 'settle'; settleT = 0; camFocus = lastBoom || camFocus; updateUI(); }
   else if (state === 'settle') {
-    settleT = moved ? 0 : settleT + 1;
+    settleT = moved || projectiles.length ? 0 : settleT + 1;
     if (settleT > 30) endTurn();
   }
   if (state === 'over') endFx();
@@ -538,7 +545,7 @@ function draw() {
   for (const p of projectiles) {
     ctx.fillStyle = WEAPONS[p.type].col;
     p.trail.forEach((q, i) => { ctx.globalAlpha = i / p.trail.length * 0.5; ctx.fillRect(q.x - 1, q.y - 1, 2, 2); });
-    ctx.globalAlpha = 1; ctx.beginPath(); ctx.arc(p.x, p.y, p.type === 'shellfall' ? 2.5 : 3.5, 0, 7); ctx.fill();
+    ctx.globalAlpha = 1; ctx.beginPath(); ctx.arc(p.x, p.y, p.type === 'debris' ? 2 : p.type === 'shellfall' ? 2.5 : 3.5, 0, 7); ctx.fill();
   }
   ctx.font = 'bold 14px system-ui, sans-serif'; ctx.textAlign = 'center';
   for (const f of floaters) { ctx.globalAlpha = Math.min(1, f.life / 25); ctx.fillStyle = f.col || '#6f6'; ctx.fillText(f.text, f.x, f.y); }

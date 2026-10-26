@@ -9,7 +9,7 @@ import { aiTurn } from './mapai.js';
 import { createMapView } from './mapview.js';
 import { startBattle, stopBattle } from './battle.js';
 
-const VERSION = '0.8.3';
+const VERSION = '0.8.4';
 const WATER = { low: 0.1, normal: 0.2, high: 0.3 };
 
 // ---------- menu ----------
