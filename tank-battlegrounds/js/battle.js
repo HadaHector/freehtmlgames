@@ -16,6 +16,7 @@ import { BIOMES } from './biomes.js';
 import { generateHeights, paintTerrain } from './terrain.js';
 
 const H = 450, FUEL = 90, BARREL = 18, PIV = 11, SUB = 6, G = 0.14;
+const FALL_DMG = 0.1;   // hit points lost per pixel fallen (10 per 100 px)
 let W = 800, K = 0.115;
 
 const cv = $('c'), ctx = cv.getContext('2d');
@@ -128,7 +129,7 @@ function restore(s) {
   for (let i = 0; i < s.craters.length; i += 3) carve(s.craters[i], s.craters[i + 1], s.craters[i + 2], false);
   craters = s.craters.slice();
   decor = decor.filter(d => solid(d.x, d.y + 1) && !solid(d.x, d.y - 3));   // trees on blown-away ground are gone
-  s.tanks.forEach((o, i) => Object.assign(tanks[i], o, { vy: 0 }));
+  s.tanks.forEach((o, i) => Object.assign(tanks[i], o, { vy: 0, fall: 0 }));
   s.teams.forEach((o, i) => { const t = teams[i]; t.next = o.next; t.noise = o.noise; t.artNext = o.artNext; Object.assign(t.pool, o.pool); });
   teamI = s.teamI; round = s.round; wind = s.wind; cur = tanks[s.cur];
 }
@@ -195,8 +196,17 @@ function settle(t) {
   for (const o of [-12, 0, 12]) s = Math.min(s, surfaceBelow(t.x + o * t.s, t.y - 6 * t.s));
   let moved = false;
   if (s > t.y + 0.5) {
-    t.vy = Math.min(t.vy + 0.2, 5); t.y = Math.min(s, t.y + t.vy); moved = true;
-  } else { t.vy = 0; if (s < t.y - 0.5) { t.y = s; moved = true; } }
+    t.vy = Math.min(t.vy + 0.2, 5);
+    const ny = Math.min(s, t.y + t.vy);
+    t.fall = (t.fall || 0) + (ny - t.y); t.y = ny; moved = true;
+  } else {
+    t.vy = 0;
+    if (t.fall) {   // landed: hurt by the height fallen
+      const dmg = Math.round(t.fall * FALL_DMG); t.fall = 0;
+      if (dmg > 0) { floaters.push({ x: t.x, y: t.y - 36 * t.s, text: '-' + dmg, col: '#f66', life: 70 }); sfx.boom(12); hurt(t, dmg); }
+    }
+    if (s < t.y - 0.5) { t.y = s; moved = true; }
+  }
   if (t.y > H + 20) {
     t.dead = true; t.hp = 0;
     burst(t.x, H - 10, 30, ['#fff', '#8cf']); sfx.splash();
@@ -531,7 +541,7 @@ function draw() {
     ctx.globalAlpha = 1; ctx.beginPath(); ctx.arc(p.x, p.y, p.type === 'shellfall' ? 2.5 : 3.5, 0, 7); ctx.fill();
   }
   ctx.font = 'bold 14px system-ui, sans-serif'; ctx.textAlign = 'center';
-  for (const f of floaters) { ctx.globalAlpha = Math.min(1, f.life / 25); ctx.fillStyle = '#6f6'; ctx.fillText(f.text, f.x, f.y); }
+  for (const f of floaters) { ctx.globalAlpha = Math.min(1, f.life / 25); ctx.fillStyle = f.col || '#6f6'; ctx.fillText(f.text, f.x, f.y); }
   ctx.globalAlpha = 1;
   for (const s of smoke) { ctx.globalAlpha = Math.min(0.5, s.life / 100); ctx.fillStyle = '#555'; ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, 7); ctx.fill(); }
   for (const p of particles) { ctx.globalAlpha = Math.min(1, p.life / 15); ctx.fillStyle = p.col; ctx.fillRect(p.x, p.y, p.size, p.size); }
