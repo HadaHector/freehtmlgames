@@ -9,11 +9,12 @@ export const WEAPONS = {
   shell:     { name: 'Shell',     kind: 'blast',   r: 26,  dmg: 30,  col: '#ffd54a' },
   heavy:     { name: 'Heavy',     kind: 'blast',   r: 48,  dmg: 55,  col: '#ff6b3d', stock: true },
   nuke:      { name: 'Nuke',      kind: 'blast',   r: 110, dmg: 100, col: '#fff',    stock: true },
+  repair:    { name: 'Repair',    kind: 'heal',    r: 45,  heal: 50, col: '#5f5',    stock: true },   // lob it at a tank (even yourself)
   artillery: { name: 'Artillery', kind: 'barrage', r: 0,   dmg: 0,   col: '#f90' },
   shellfall: { name: 'Barrage',   kind: 'blast',   r: 26,  dmg: 32,  col: '#f90' },   // one shell of an artillery barrage
 };
 /** Weapons selectable in battle, in menu order (stock ones need ammo, artillery needs guns in range). */
-export const BATTLE_WEAPONS = ['shell', 'heavy', 'nuke', 'artillery'];
+export const BATTLE_WEAPONS = ['shell', 'heavy', 'nuke', 'repair', 'artillery'];
 /** Ammo types that live in the player's stockpile. */
 export const STOCK_AMMO = BATTLE_WEAPONS.filter(k => WEAPONS[k].stock);
 

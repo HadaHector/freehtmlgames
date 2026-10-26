@@ -45,6 +45,7 @@ export const sfx = {
   },
   splash() { noise(0.35, 0.25, 3500, 700); },
   die() { noise(0.7, 0.6, 1500, 40); tone(80, 25, 0.7, 'sine', 0.6); noise(0.4, 0.3, 800, 60, 0.25); },
+  heal() { [660, 880, 1320].forEach((f, i) => tone(f, f, 0.18, 'sine', 0.18, i * 0.09)); },
   blip() { tone(700, 900, 0.05, 'square', 0.08); },
   pop() { noise(0.15, 0.12, 4000, 500); tone(900, 200, 0.1, 'triangle', 0.06); },
   win() { [523, 659, 784, 1047, 784, 1047].forEach((f, i) => tone(f, f, 0.22, 'triangle', 0.22, i * 0.14)); },

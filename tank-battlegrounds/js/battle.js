@@ -25,7 +25,7 @@ let mask = new Uint8Array(1);
 let B = null, running = false, resolveBattle = null, result = null;
 let ST, tanks, teams, cur, teamI, decor, clouds, projectiles, particles;
 let wind, state, fuel, settleT, ai, shake, flash, lastBoom, tick = 0, moveDir = 0, round = 1;
-let endMode = null, endT = 0, rockets = [], sparks = [], ash = [], smoke = [];
+let endMode = null, endT = 0, rockets = [], sparks = [], ash = [], smoke = [], floaters = [];
 let camX = 0, camFocus = 0, camManual = false;
 let dpr = 1, cssW = 300, cssH = 200, S0 = 1, offY = 0, vw = 300, skyGrad;
 
@@ -103,7 +103,7 @@ function init() {
     teams.push(tm);
   });
   placeTanks();
-  projectiles = []; particles = []; shake = 0; flash = 0; moveDir = 0; lastBoom = 0;
+  projectiles = []; particles = []; floaters = []; shake = 0; flash = 0; moveDir = 0; lastBoom = 0;
   endMode = null; endT = 0; rockets = []; sparks = []; ash = []; smoke = [];
   wind = rnd(-0.012, 0.012); teamI = 0; round = 1; cur = teams[0].tanks[0]; teams[0].next = 1;
   resize();
@@ -211,7 +211,7 @@ function fire() {
   if (t.ammo[t.weapon] !== Infinity) t.ammo[t.weapon]--;
   if (t.weapon === 'artillery') teams[t.team].artNext = round + ART_COOLDOWN;
   const p = launch(t, t.ang, t.pow);
-  Object.assign(p, { type: t.weapon, trail: [], owner: t, life: 0 });
+  Object.assign(p, { type: t.weapon, trail: [], owner: t, life: 0, main: true });
   projectiles.push(p);
   burst(p.x, p.y, 6, ['#fff', w.col]); sfx.shoot();
   if (t.ammo[t.weapon] <= 0) t.weapon = DEFAULT_WEAPON;
@@ -223,7 +223,7 @@ function updateProjectiles() {
     p.life++;
     p.trail.push({ x: p.x, y: p.y }); if (p.trail.length > 12) p.trail.shift();
     const drop = () => projectiles.splice(projectiles.indexOf(p), 1);
-    if (r === 'out') { drop(); continue; }
+    if (r === 'out') { drop(); if (p.main) p.owner.last = { x: clamp(p.x, 0, W), y: clamp(p.y, 0, H) }; continue; }
     if (r) { drop(); explode(p); continue; }
     if (p.life > 1500) { drop(); explode(p); continue; }
   }
@@ -242,8 +242,19 @@ function blast(x, y, r, dmg) {
 }
 function explode(p) {
   const w = WEAPONS[p.type];
+  if (p.main) p.owner.last = { x: p.x, y: p.y };   // remembered per tank, shown as a marker
   lastBoom = camFocus = p.x;
   switch (w.kind) {
+    case 'heal': {
+      for (const t of tanks) {
+        if (t.dead || Math.hypot(p.x - t.x, p.y - (t.y - 8)) > w.r) continue;
+        const gain = Math.min(w.heal, 100 - t.hp);
+        t.hp += gain;
+        floaters.push({ x: t.x, y: t.y - 36, text: '+' + gain, life: 70 });
+        burst(t.x, t.y - 10, 14, ['#5f5', '#bfb', '#fff']);
+      }
+      sfx.heal(); break;
+    }
     case 'barrage': {   // artillery: the more guns in range, the bigger the barrage
       const n = 6 + 4 * teams[p.owner.team].guns, order = shuffle([...Array(n).keys()]);
       order.forEach((o, i) => projectiles.push({ x: p.x + (i - (n - 1) / 2) * 20 + rnd(-5, 5), y: -20 - o * 22, vx: 0, vy: 2, type: 'shellfall', trail: [], owner: p.owner, life: 0 }));
@@ -273,6 +284,9 @@ function simulate(t, ang, pow, foe) {
 }
 function aiPlan() {
   const me = cur, tm = teams[me.team], D = DIFF[B.diff];
+  if (me.hp <= 50 && me.ammo.repair > 0 && Math.random() < 0.5 + D.special / 2) {   // patch itself up: lob the pack straight up
+    me.weapon = 'repair'; ai = { ta: 90, tp: 10, wait: 0 }; return;
+  }
   const foes = tanks.filter(t => !t.dead && t.team !== me.team);
   const dist = t => Math.abs(t.x - me.x);
   let foe;
@@ -321,6 +335,8 @@ function update() {
   }
   if (state === 'fly') updateProjectiles();
   for (const p of particles) { p.x += p.vx; p.y += p.vy; p.vy += 0.15; p.life--; }
+  for (const f of floaters) { f.y -= 0.4; f.life--; }
+  floaters = floaters.filter(f => f.life > 0);
   particles = particles.filter(p => p.life > 0);
   shake *= 0.9; flash *= 0.93;
   let moved = false;
@@ -436,6 +452,18 @@ function drawTank(t) {
   }
   if (hop) ctx.restore();
 }
+/** Marker where a tank's previous shot landed (bold for the tank whose turn it is). */
+function drawLast(t, mine) {
+  const { x, y } = t.last, r = mine ? 7 + Math.sin(tick / 8) : 6;
+  ctx.save(); ctx.globalAlpha = mine ? 1 : 0.4; ctx.lineCap = 'round';
+  for (const [col, w] of [['rgba(255,255,255,.85)', 4], [t.col, 2]]) {
+    ctx.strokeStyle = col; ctx.lineWidth = w; ctx.beginPath();
+    ctx.arc(x, y, r, 0, 7);
+    ctx.moveTo(x - r - 4, y); ctx.lineTo(x + r + 4, y); ctx.moveTo(x, y - r - 4); ctx.lineTo(x, y + r + 4);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
 function draw() {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.fillStyle = skyGrad; ctx.fillRect(0, 0, cssW, cssH);
@@ -451,6 +479,7 @@ function draw() {
   ctx.setTransform(k, 0, 0, k, -camX * k + rnd(-sh, sh), offY * dpr + rnd(-sh, sh));
   ctx.drawImage(tc, 0, 0);
   for (const d of decor) if (d.x > camX - 20 && d.x < camX + vw + 20) drawDecor(d);
+  if (state !== 'over') for (const t of tanks) if (!t.dead && t.last) drawLast(t, t === cur);
   tanks.forEach(drawTank);
   if (state === 'aim' && teams[cur.team].human) {
     const pv = pivot(cur), a = cur.ang * Math.PI / 180, L = BARREL + cur.pow * 0.9;
@@ -463,6 +492,9 @@ function draw() {
     p.trail.forEach((q, i) => { ctx.globalAlpha = i / p.trail.length * 0.5; ctx.fillRect(q.x - 1, q.y - 1, 2, 2); });
     ctx.globalAlpha = 1; ctx.beginPath(); ctx.arc(p.x, p.y, p.type === 'shellfall' ? 2.5 : 3.5, 0, 7); ctx.fill();
   }
+  ctx.font = 'bold 14px system-ui, sans-serif'; ctx.textAlign = 'center';
+  for (const f of floaters) { ctx.globalAlpha = Math.min(1, f.life / 25); ctx.fillStyle = '#6f6'; ctx.fillText(f.text, f.x, f.y); }
+  ctx.globalAlpha = 1;
   for (const s of smoke) { ctx.globalAlpha = Math.min(0.5, s.life / 100); ctx.fillStyle = '#555'; ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, 7); ctx.fill(); }
   for (const p of particles) { ctx.globalAlpha = Math.min(1, p.life / 15); ctx.fillStyle = p.col; ctx.fillRect(p.x, p.y, p.size, p.size); }
   ctx.globalAlpha = 1;

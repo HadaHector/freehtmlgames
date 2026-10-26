@@ -12,8 +12,8 @@ export const MAX_AMMO = 9;
  * (tanks made, ammo gained). New building types / resources slot in here.
  */
 export const BUILDINGS = {
-  capital:   { icon: '🏰', name: 'Capital',      desc: 'Makes 1 tank per turn. Lose it and you are out.',
-               turn: (map, c, p, ctx) => addTank(c, ctx) },
+  capital:   { icon: '🏰', name: 'Capital',      desc: 'Makes 1 tank and 1 Repair pack per turn. Lose it and you are out.',
+               turn: (map, c, p, ctx) => { addTank(c, ctx); addAmmo(p, 'repair', ctx); } },
   factory:   { icon: '🏭', name: 'Tank factory', desc: 'Makes 1 tank per turn.',
                turn: (map, c, p, ctx) => addTank(c, ctx) },
   ammo:      { icon: '📦', name: 'Ammo depot',   desc: 'Makes 1 Heavy shell per turn, and a Nuke every 3rd round.',
