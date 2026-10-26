@@ -4,22 +4,24 @@ import { sfx, unlockAudio, wireCommonButtons } from './audio.js';
 import { WEAPONS, UNITS, weakerDiff } from './weapons.js';
 import { BIOMES } from './biomes.js';
 import * as M from './map.js';
+import { generateMap, LAYOUTS } from './mapgen.js';
 import { aiTurn } from './mapai.js';
 import { createMapView } from './mapview.js';
 import { startBattle, stopBattle } from './battle.js';
 
-const VERSION = '0.6.0';
+const VERSION = '0.7.0';
 const WATER = { low: 0.1, normal: 0.2, high: 0.3 };
 
 // ---------- menu ----------
 const OPTIONS = [
   { key: 'size',    label: 'Map size',       choices: [['6x6', '6 × 6'], ['8x8', '8 × 8'], ['10x10', '10 × 10'], ['12x12', '12 × 12']] },
+  { key: 'layout',  label: 'Map type',       choices: [['random', 'Random'], ...Object.entries(LAYOUTS).map(([k, l]) => [k, l.name])] },
   { key: 'water',   label: 'Sea',            choices: [['low', 'Little'], ['normal', 'Some'], ['high', 'Lots']] },
   { key: 'players', label: 'Players',        choices: [[2, '2'], [3, '3'], [4, '4']] },
   { key: 'humans',  label: 'Humans',         choices: [[1, '1 vs CPU'], [2, '2 (pass & play)'], [0, 'Watch CPU']] },
   { key: 'diff',    label: 'CPU difficulty', choices: [['easy', 'Easy'], ['normal', 'Normal'], ['hard', 'Hard'], ['insane', 'Insane']] },
 ];
-const cfg = { size: '8x8', water: 'normal', players: 2, humans: 1, diff: 'normal', seed: '' };
+const cfg = { size: '8x8', layout: 'random', water: 'normal', players: 2, humans: 1, diff: 'normal', seed: '' };
 try { Object.assign(cfg, JSON.parse(localStorage.getItem('tank-battlegrounds.cfg') || '{}')); } catch (e) {}
 
 function buildOptions() {
@@ -104,7 +106,7 @@ function startCampaign() {
   try { localStorage.setItem('tank-battlegrounds.cfg', JSON.stringify(cfg)); } catch (e) {}
   const [w, h] = cfg.size.split('x').map(Number);
   if (readSave() && !confirm('Start a new game? Your saved game will be replaced.')) return;
-  beginGame(M.generateMap({ w, h, players: cfg.players, humans: cfg.humans, seed: cfg.seed, water: WATER[cfg.water] }), -1);
+  beginGame(generateMap({ w, h, players: cfg.players, humans: cfg.humans, seed: cfg.seed, water: WATER[cfg.water], layout: cfg.layout }), -1);
 }
 
 /** resumeAt: index of the player whose turn it is, or -1 for a fresh game. */
