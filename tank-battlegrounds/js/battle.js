@@ -21,7 +21,7 @@ let W = 800, K = 0.115;
 const cv = $('c'), ctx = cv.getContext('2d');
 const tc = document.createElement('canvas');
 let tctx;
-let mask = new Uint8Array(1);
+let mask = new Uint8Array(1), craters = [];
 
 let B = null, running = false, resolveBattle = null, result = null;
 let ST, tanks, teams, cur, teamI, decor, clouds, projectiles, particles;
@@ -42,7 +42,8 @@ function setMask(cx, cy, r, v) {
     for (let x = Math.max(0, Math.floor(cx - r)); x <= Math.min(W - 1, Math.ceil(cx + r)); x++)
       if ((x - cx) ** 2 + (y - cy) ** 2 <= r * r) mask[y * W + x] = v;
 }
-function carve(cx, cy, r) {
+function carve(cx, cy, r, record = true) {
+  if (record) craters.push(Math.round(cx), Math.round(cy), Math.round(r));   // flat list of circles, kept for saving
   tctx.save(); tctx.globalCompositeOperation = 'destination-out';
   tctx.beginPath(); tctx.arc(cx, cy, r, 0, 7); tctx.fill(); tctx.restore();
   setMask(cx, cy, r, 0);
@@ -89,6 +90,7 @@ function init(snap) {
   mask = new Uint8Array(W * H);
   for (let x = 0; x < W; x++) for (let y = Math.ceil(hs[x]); y < H; y++) mask[y * W + x] = 1;
   placeDecor(rng, L, R);
+  craters = [];
 
   teams = []; tanks = [];
   B.teams.forEach((t, i) => {
@@ -112,16 +114,20 @@ function init(snap) {
   makeSky(); camX = cur.x - vw / 2; startTurn(false);
 }
 
-/** What is needed to carry on a battle later (terrain is rebuilt from the seed, craters are not kept). */
+/** What is needed to carry on a battle later: the terrain is rebuilt from the seed and the craters (a flat
+ *  [x, y, radius, ...] list of circles) are cut out of it again. */
 function snapshot() {
   return {
-    round, teamI, wind, cur: tanks.indexOf(cur),
+    round, teamI, wind, cur: tanks.indexOf(cur), craters: craters.slice(),
     teams: teams.map(t => ({ next: t.next, noise: t.noise, artNext: t.artNext,
                              pool: Object.fromEntries(Object.entries(t.pool).filter(([, v]) => Number.isFinite(v))) })),
     tanks: tanks.map(t => ({ x: t.x, y: t.y, hp: t.hp, dead: t.dead, ang: t.ang, pow: t.pow, weapon: t.weapon, last: t.last || null })),
   };
 }
 function restore(s) {
+  for (let i = 0; i < s.craters.length; i += 3) carve(s.craters[i], s.craters[i + 1], s.craters[i + 2], false);
+  craters = s.craters.slice();
+  decor = decor.filter(d => solid(d.x, d.y + 1) && !solid(d.x, d.y - 3));   // trees on blown-away ground are gone
   s.tanks.forEach((o, i) => Object.assign(tanks[i], o, { vy: 0 }));
   s.teams.forEach((o, i) => { const t = teams[i]; t.next = o.next; t.noise = o.noise; t.artNext = o.artNext; Object.assign(t.pool, o.pool); });
   teamI = s.teamI; round = s.round; wind = s.wind; cur = tanks[s.cur];

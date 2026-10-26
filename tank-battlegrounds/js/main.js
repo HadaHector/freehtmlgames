@@ -9,7 +9,7 @@ import { aiTurn } from './mapai.js';
 import { createMapView } from './mapview.js';
 import { startBattle, stopBattle } from './battle.js';
 
-const VERSION = '0.8.1';
+const VERSION = '0.8.2';
 const WATER = { low: 0.1, normal: 0.2, high: 0.3 };
 
 // ---------- menu ----------
@@ -56,8 +56,8 @@ function show(name) {
 
 // ---------- save / continue ----------
 // The strategy state is saved after every action. A battle in progress is not saved (its
-// A battle in progress is saved at the start of each of its turns (tanks, HP, ammo, whose turn); the
-// terrain is rebuilt from the seed, so craters are not saved.
+// A battle in progress is saved at the start of each of its turns (tanks, HP, ammo, whose turn, and the
+// craters as a list of circles; the terrain itself is rebuilt from the seed).
 const SAVE_KEY = 'tank-battlegrounds.save';
 function saveGame() {
   if (!map || map.over) return;
