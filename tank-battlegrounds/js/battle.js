@@ -484,10 +484,10 @@ function drawTank(t) {
   }
   if (hop) ctx.restore();
 }
-/** Marker where a tank's previous shot landed (bold for the tank whose turn it is). */
-function drawLast(t, mine) {
-  const { x, y } = t.last, r = mine ? 7 + Math.sin(tick / 8) : 6;
-  ctx.save(); ctx.globalAlpha = mine ? 1 : 0.4; ctx.lineCap = 'round';
+/** Marker where the current tank's previous shot landed. */
+function drawLast(t) {
+  const { x, y } = t.last, r = 7 + Math.sin(tick / 8);
+  ctx.save(); ctx.lineCap = 'round';
   for (const [col, w] of [['rgba(255,255,255,.85)', 4], [t.col, 2]]) {
     ctx.strokeStyle = col; ctx.lineWidth = w; ctx.beginPath();
     ctx.arc(x, y, r, 0, 7);
@@ -511,7 +511,7 @@ function draw() {
   ctx.setTransform(k, 0, 0, k, -camX * k + rnd(-sh, sh), offY * dpr + rnd(-sh, sh));
   ctx.drawImage(tc, 0, 0);
   for (const d of decor) if (d.x > camX - 20 && d.x < camX + vw + 20) drawDecor(d);
-  if (state !== 'over') for (const t of tanks) if (!t.dead && t.last) drawLast(t, t === cur);
+  if (state !== 'over' && cur.last) drawLast(cur);   // only the tank whose turn it is
   tanks.forEach(drawTank);
   if (state === 'aim' && teams[cur.team].human && cur.weapon !== 'repair') {
     const pv = pivot(cur), a = cur.ang * Math.PI / 180, L = BARREL * cur.s + cur.pow * 0.9;
