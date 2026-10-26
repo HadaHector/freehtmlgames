@@ -8,7 +8,7 @@ import { aiTurn } from './mapai.js';
 import { createMapView } from './mapview.js';
 import { startBattle, stopBattle } from './battle.js';
 
-const VERSION = '0.1.0';
+const VERSION = '0.2.0';
 const WATER = { low: 0.1, normal: 0.2, high: 0.3 };
 
 // ---------- menu ----------
@@ -23,7 +23,9 @@ const OPTIONS = [
 const cfg = { size: '8x8', water: 'normal', players: 2, humans: 1, rules: 'arsenal', diff: 'normal', seed: '' };
 try { Object.assign(cfg, JSON.parse(localStorage.getItem('tank-battlegrounds.cfg') || '{}')); } catch (e) {}
 
-for (const o of OPTIONS) {
+function buildOptions() {
+ $('opts').innerHTML = '';
+ for (const o of OPTIONS) {
   const box = document.createElement('div'); box.className = 'opt';
   box.innerHTML = `<div>${o.label}</div><div class="seg"></div>` + (o.hint ? '<div class="hint"></div>' : '');
   const seg = box.querySelector('.seg'), hint = box.querySelector('.hint'), btns = [];
@@ -34,7 +36,9 @@ for (const o of OPTIONS) {
     seg.appendChild(b); btns.push([b, v]);
   }
   refresh(); $('opts').appendChild(box);
+ }
 }
+buildOptions();
 const randomSeed = () => Math.random().toString(36).slice(2, 8);
 $('seed').value = cfg.seed;
 $('seed').oninput = e => { cfg.seed = e.target.value.trim(); };
@@ -49,6 +53,44 @@ function show(name) {
   if (name === 'map') requestAnimationFrame(() => view.fit());
 }
 
+// ---------- save / continue ----------
+// The strategy state is saved after every action. A battle in progress is not saved (its
+// terrain damage isn't either): leaving mid-battle returns to the state before the attack.
+const SAVE_KEY = 'tank-battlegrounds.save';
+function saveGame() {
+  if (!map || map.over) return;
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify({
+      v: 1, cfg, current,
+      map: { w: map.w, h: map.h, seed: map.seed, round: map.round, cells: map.cells,
+             players: map.players.map(p => ({ ...p, capital: p.capital.idx })) },
+    }));
+  } catch (e) {}
+  refreshContinue();
+}
+function clearSave() { try { localStorage.removeItem(SAVE_KEY); } catch (e) {} refreshContinue(); }
+function readSave() {
+  try {
+    const s = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null');
+    if (!s || s.v !== 1 || s.map.cells.length !== s.map.w * s.map.h) return null;
+    s.map.players.forEach(p => { p.capital = s.map.cells[p.capital]; });
+    s.map.over = false;
+    return s;
+  } catch (e) { return null; }
+}
+function refreshContinue() {
+  const s = readSave();
+  $('continueGame').hidden = !s;
+  if (s) $('continueGame').textContent = `▶ Continue: round ${s.map.round} · ${s.cfg.size.replace('x', '×')} · ${s.map.players[s.current].name}'s turn`;
+}
+function continueGame() {
+  const s = readSave();
+  if (!s) return;
+  unlockAudio();
+  Object.assign(cfg, s.cfg); buildOptions(); $('seed').value = cfg.seed;
+  beginGame(s.map, s.current);
+}
+
 // ---------- session ----------
 const view = createMapView($('grid'), $('gridWrap'));
 let map = null, runId = 0, current = 0, humanDone = null, busy = false, sendN = 1, dialogResolve = null;
@@ -61,14 +103,19 @@ function startCampaign() {
   $('seed').value = cfg.seed;
   try { localStorage.setItem('tank-battlegrounds.cfg', JSON.stringify(cfg)); } catch (e) {}
   const [w, h] = cfg.size.split('x').map(Number);
+  if (readSave() && !confirm('Start a new game? Your saved game will be replaced.')) return;
+  beginGame(M.generateMap({ w, h, players: cfg.players, humans: cfg.humans, seed: cfg.seed, water: WATER[cfg.water] }), -1);
+}
+
+/** resumeAt: index of the player whose turn it is, or -1 for a fresh game. */
+function beginGame(newMap, resumeAt) {
   abort();
-  map = M.generateMap({ w, h, players: cfg.players, humans: cfg.humans, seed: cfg.seed, water: WATER[cfg.water] });
-  map.over = false;
+  map = newMap; map.over = false;
   const id = ++runId;
   $('over').hidden = true;
   show('map');
   view.build(map);
-  loop(id);
+  loop(id, resumeAt);
 }
 
 function abort() {
@@ -80,25 +127,27 @@ function abort() {
 }
 function backToMenu() { abort(); $('over').hidden = true; show('menu'); }
 
-async function loop(id) {
+async function loop(id, resumeAt) {
   const game = {
     map,
     active: () => id === runId && !map.over,
     move: async (pid, src, dst, n) => { await doMove(pid, src, dst, n); await sleep(fast() ? 40 : 350); },
     fire: async (pid, src, t) => { await doFire(pid, src, t); await sleep(fast() ? 40 : 350); },
   };
+  let from = Math.max(0, resumeAt), resumed = resumeAt >= 0;
   while (id === runId && !map.over) {
-    for (const p of map.players) {
+    for (const p of map.players.slice(from)) {
       if (id !== runId || map.over) return;
       if (!p.alive) continue;
-      const made = M.startTurn(map, p.id);
+      const made = resumed ? 0 : M.startTurn(map, p.id);
       current = p.id; clearSel();
-      toast(`Round ${map.round} · ${p.name}${p.human ? '' : ' (CPU)'}'s turn${made ? ` · +${made} tank${made > 1 ? 's' : ''}` : ''}`);
-      refresh();
+      toast(`Round ${map.round} · ${p.name}${p.human ? '' : ' (CPU)'}'s turn${resumed ? ' · resumed' : made ? ` · +${made} tank${made > 1 ? 's' : ''}` : ''}`);
+      resumed = false;
+      saveGame(); refresh();
       if (p.human) await new Promise(res => { humanDone = res; refresh(); });
       else { await sleep(fast() ? 40 : 400); await aiTurn(game, p.id); }
     }
-    map.round++;
+    from = 0; map.round++;
   }
 }
 
@@ -133,7 +182,7 @@ async function doFire(pid, src, target) {
 function afterAction() {
   const r = M.gameResult(map);
   refresh();
-  if (r) endGame(r);
+  if (r) endGame(r); else saveGame();
 }
 
 const roleOf = p => (!p || !p.human ? 'CPU' : cfg.humans === 1 ? 'you' : `player ${p.id + 1}`);
@@ -190,7 +239,7 @@ function ask(title, text, buttons) {
 }
 
 function endGame(r) {
-  map.over = true;
+  map.over = true; clearSave();
   let m, good;
   if (r.humansOut) { m = '💀 Defeat'; good = false; }
   else {
@@ -282,7 +331,9 @@ function refresh() {
 
 // ---------- wiring ----------
 $('start').onclick = startCampaign;
+$('continueGame').onclick = continueGame;
 $('overAgain').onclick = startCampaign;
 $('overMenu').onclick = backToMenu;
 wireCommonButtons();
+refreshContinue();
 show('menu');
