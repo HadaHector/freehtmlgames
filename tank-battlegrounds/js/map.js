@@ -1,6 +1,6 @@
 // Strategy-map model and rules. No DOM in here.
 import { makeRng, hashSeed } from './util.js';
-import { STOCK_AMMO } from './weapons.js';
+import { STOCK_AMMO, UNITS } from './weapons.js';
 
 export const MAX_STACK = 8;
 export const ART_RANGE = 3;
@@ -77,7 +77,7 @@ function tryGenerate(cfg, attempt) {
   const cells = [];
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++)
     cells.push({ x, y, idx: y * w + x, e: elev(x + 0.5, y + 0.5), t: temp(x + 0.5, y + 0.5), m: moist(x + 0.5, y + 0.5),
-                 type: 'land', biome: 'meadow', height: 0, building: null, owner: -1, tanks: 0, ready: 0 });
+                 type: 'land', biome: 'meadow', height: 0, building: null, owner: -1, tanks: 0, unit: 'tank', ready: 0 });
   const map = { w, h, seed: cfg.seed, cells, players: [], round: 1 };
 
   const sorted = cells.map(c => c.e).sort((a, b) => a - b);
@@ -128,7 +128,12 @@ function tryGenerate(cfg, attempt) {
   }
   // neutral garrisons
   const neutral = best.filter(c => c.owner < 0);
-  for (const c of neutral) c.tanks = rng.next() < 0.3 ? 0 : 1 + (c.height >= 2 ? 1 : 0) + (rng.next() < 0.3 ? 1 : 0);
+  // neutral garrisons: stacks of one unit type. Half of them are light tanks; heavy tanks are rare and always alone.
+  for (const c of neutral) {
+    c.tanks = rng.next() < 0.3 ? 0 : 1 + (c.height >= 2 ? 1 : 0) + (rng.next() < 0.3 ? 1 : 0);
+    if (c.tanks && rng.next() < 0.5) c.unit = 'light';
+  }
+  for (const c of rng.shuffle(neutral.slice()).slice(0, Math.max(1, Math.round(neutral.length * 0.05)))) { c.unit = 'heavy'; c.tanks = 1; }
   // buildings: a factory near each capital, the rest scattered on neutral ground
   for (const p of map.players) {
     const own = best.filter(c => c.owner === p.id && !c.building);
@@ -170,8 +175,10 @@ function eliminate(map, loser) {
 }
 function claim(map, id, dst) {
   if (dst.building === 'capital' && dst.owner >= 0 && dst.owner !== id) eliminate(map, dst.owner);
-  dst.owner = id;
+  dst.owner = id; dst.unit = 'tank';   // player armies are plain tanks
 }
+/** Fighting strength of a stack in plain-tank equivalents. */
+export const strength = c => c.tanks * UNITS[c.unit || 'tank'].power;
 
 /** Tanks leave `src` (they are away until the move or battle resolves). */
 export function detach(src, n) { src.tanks -= n; src.ready = Math.max(0, src.ready - n); }
@@ -188,12 +195,20 @@ export function applyBattle(map, id, src, dst, n, result) {
   if (sa > 0 && sd === 0) { claim(map, id, dst); dst.tanks = sa; dst.ready = 0; }
   else if (sa === 0) dst.tanks = sd;
   else { dst.tanks = sd; src.tanks = Math.min(MAX_STACK, src.tanks + sa); } // both survived: attackers fall back
+  if (dst.tanks === 0) dst.unit = 'tank';
 }
 
 /** Quick resolution when no human wants to play the fight out. */
-export function autoResolve(n, d) {
-  while (n > 0 && d > 0) { if (Math.random() < 0.9 * n / (n + d)) d--; else n--; }
-  return { survivors: [n, d], winner: n > 0 ? 0 : d > 0 ? 1 : -1 };
+export function autoResolve(n, d, unit = 'tank') {
+  const u = UNITS[unit], pw = u.power / 1;
+  let aHp = n * UNITS.tank.hp, dHp = d * u.hp;   // exchange hits until one side's hit points run out
+  const count = (hp, per) => Math.ceil(hp / per);
+  while (aHp > 0 && dHp > 0) {
+    const a = count(aHp, UNITS.tank.hp), dd = count(dHp, u.hp) * pw;
+    if (Math.random() < 0.9 * a / (a + dd)) dHp -= 50; else aHp -= 50;
+  }
+  const sa = Math.max(0, count(aHp, UNITS.tank.hp)), sd = Math.max(0, count(dHp, u.hp));
+  return { survivors: [sa, sd], winner: sa > 0 ? 0 : sd > 0 ? 1 : -1 };
 }
 
 /** How many of `id`'s artillery buildings cover the cell where a battle takes place. */

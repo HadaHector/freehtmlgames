@@ -3,14 +3,14 @@
 //
 // setup = {
 //   seed, left: {biome, height}, right: {biome, height}, diff,
-//   teams: [{name, col, label, human, count, ammo: {weapon: n}, artillery: n}, ...],   // [attacker (left), defender (right)]
+//   teams: [{name, col, label, human, unit, diff, count, ammo: {weapon: n}, artillery: n}, ...],   // [attacker (left), defender (right)]
 //   (ammo is a stockpile shared by the whole team; artillery = guns in range, 0 = no fire support)
 //   onMenu: () => void,
 // }
 // result = { survivors: [n, n], winner: 0 | 1 | -1, ammoLeft: [{weapon: n}, {weapon: n}] }
 import { $, clamp, rnd, pick, shuffle, makeRng } from './util.js';
 import { sfx, unlockAudio } from './audio.js';
-import { WEAPONS, DEFAULT_WEAPON, BATTLE_WEAPONS, STOCK_AMMO, AI_WEAPONS, SAFE, DIFF, ART_FIRST_ROUND, ART_COOLDOWN } from './weapons.js';
+import { WEAPONS, UNITS, BATTLE_WEAPONS, STOCK_AMMO, AI_WEAPONS, SAFE, DIFF, ART_FIRST_ROUND, ART_COOLDOWN } from './weapons.js';
 import { BIOMES } from './biomes.js';
 import { generateHeights, paintTerrain } from './terrain.js';
 
@@ -92,12 +92,12 @@ function init() {
   teams = []; tanks = [];
   B.teams.forEach((t, i) => {
     // one stockpile per team, shared by its tanks; the tank's own weapon never runs out
-    const pool = { [DEFAULT_WEAPON]: Infinity, artillery: 0 };
+    const u = UNITS[t.unit || 'tank'], pool = { [u.weapon]: Infinity, artillery: 0 };
     for (const k of STOCK_AMMO) pool[k] = t.ammo[k] || 0;
-    const tm = { i, name: t.name, col: t.col, label: t.label, human: t.human, tanks: [], next: 0, noise: DIFF[B.diff].n0,
+    const tm = { i, name: t.name, col: t.col, label: t.label, human: t.human, tanks: [], next: 0, diff: t.diff || B.diff, noise: DIFF[t.diff || B.diff].n0,
                  pool, guns: t.artillery || 0, artNext: ART_FIRST_ROUND };
     for (let j = 0; j < t.count; j++) {
-      const tank = { team: i, x: 0, y: 0, vy: 0, hp: 100, dead: false, ang: i ? 130 : 50, pow: 60, weapon: DEFAULT_WEAPON, ammo: pool, col: t.col };
+      const tank = { team: i, x: 0, y: 0, vy: 0, hp: u.hp, maxHp: u.hp, s: u.scale, unit: t.unit || 'tank', dead: false, ang: i ? 130 : 50, pow: 60, weapon: u.weapon, ammo: pool, col: t.col };
       tm.tanks.push(tank); tanks.push(tank);
     }
     teams.push(tm);
@@ -109,14 +109,14 @@ function init() {
   resize();
   makeSky(); camX = cur.x - vw / 2; startTurn(false);
 }
-function surfaceAt(x) { return Math.min(...[-12, 0, 12].map(o => surfaceBelow(x + o, 0))); }
+function surfaceAt(x, s = 1) { return Math.min(...[-12, 0, 12].map(o => surfaceBelow(x + o * s, 0))); }
 function placeTanks() {
   // attackers hold the left end of the field, defenders the right end
   teams.forEach((tm, i) => {
     const n = tm.tanks.length, z0 = i ? W * 0.62 : 40, zw = (i ? W - 40 : W * 0.38) - z0, seg = zw / n;
     tm.tanks.forEach((t, j) => {
-      t.x = clamp(z0 + seg * (j + 0.5) + rnd(-0.2, 0.2) * seg, 20, W - 20);
-      const y = surfaceAt(t.x);
+      t.x = clamp(z0 + seg * (j + 0.5) + rnd(-0.2, 0.2) * seg, 20 * t.s, W - 20 * t.s);
+      const y = surfaceAt(t.x, t.s);
       t.y = isFinite(y) ? y : 0;
     });
   });
@@ -127,7 +127,7 @@ function startTurn(drift = true) {
   fuel = FUEL; state = 'aim'; camFocus = cur.x; camManual = false; moveDir = 0;
   const tm = teams[cur.team];
   if (tm.guns) tm.pool.artillery = round >= tm.artNext ? 1 : 0;
-  if (!selectable(cur, cur.weapon)) cur.weapon = DEFAULT_WEAPON;
+  if (!selectable(cur, cur.weapon)) cur.weapon = home(cur);
   if (!tm.human) aiPlan();
   updateUI();
 }
@@ -164,11 +164,11 @@ function endTurn() {
 function hurt(t, amt) {
   if (t.dead) return;
   t.hp -= amt;
-  if (t.hp <= 0) { t.hp = 0; t.dead = true; burst(t.x, t.y - 8, 50, ['#ff9a3d', '#ffd54a', t.col, '#333']); shake = 10; sfx.die(); }
+  if (t.hp <= 0) { t.hp = 0; t.dead = true; burst(t.x, t.y - 8 * t.s, 50 * t.s, ['#ff9a3d', '#ffd54a', t.col, '#333']); shake = 10; sfx.die(); }
 }
 function settle(t) {
   let s = Infinity;
-  for (const o of [-12, 0, 12]) s = Math.min(s, surfaceBelow(t.x + o, t.y - 6));
+  for (const o of [-12, 0, 12]) s = Math.min(s, surfaceBelow(t.x + o * t.s, t.y - 6 * t.s));
   let moved = false;
   if (s > t.y + 0.5) {
     t.vy = Math.min(t.vy + 0.2, 5); t.y = Math.min(s, t.y + t.vy); moved = true;
@@ -181,14 +181,15 @@ function settle(t) {
 }
 function moveTank(t, dx) {
   const nx = t.x + dx;
-  if (nx < 15 || nx > W - 15) return false;
+  if (nx < 15 * t.s || nx > W - 15 * t.s) return false;
   let s = Infinity;
-  for (const o of [-12, 0, 12]) s = Math.min(s, surfaceBelow(nx + o, t.y - 8));
+  for (const o of [-12, 0, 12]) s = Math.min(s, surfaceBelow(nx + o * t.s, t.y - 8 * t.s));
   if (s < t.y - 5) return false;
   t.x = nx; if (s < t.y) t.y = s;
   return true;
 }
-const pivot = t => ({ x: t.x, y: t.y - PIV });
+const pivot = t => ({ x: t.x, y: t.y - PIV * t.s });
+const home = t => UNITS[t.unit].weapon;
 
 // ---------- projectiles ----------
 function stepProj(p, targets) {
@@ -196,14 +197,15 @@ function stepProj(p, targets) {
     p.vx += wind / SUB; p.vy += G / SUB; p.x += p.vx / SUB; p.y += p.vy / SUB;
     if (p.x < 0 || p.x >= W || p.y >= H) return 'out';
     for (const t of targets)
-      if (!t.dead && Math.abs(p.x - t.x) < 15 && p.y > t.y - 17 && p.y < t.y) return 'tank';
+      if (!t.dead && Math.abs(p.x - t.x) < 15 * t.s && p.y > t.y - 17 * t.s && p.y < t.y) return 'tank';
     if (solid(p.x, p.y)) return 'hit';
   }
   return null;
 }
 function launch(t, ang, pow) {
   const a = ang * Math.PI / 180, pv = pivot(t);
-  return { x: pv.x + Math.cos(a) * BARREL, y: pv.y - Math.sin(a) * BARREL,
+  const len = BARREL * t.s;
+  return { x: pv.x + Math.cos(a) * len, y: pv.y - Math.sin(a) * len,
            vx: Math.cos(a) * pow * K, vy: -Math.sin(a) * pow * K };
 }
 function fire() {
@@ -211,11 +213,11 @@ function fire() {
   if (t.ammo[t.weapon] !== Infinity) t.ammo[t.weapon]--;
   if (t.weapon === 'artillery') teams[t.team].artNext = round + ART_COOLDOWN;
   if (w.kind === 'tool') {   // repair pack: patch up this tank instead of shooting; the turn is used up
-    const gain = Math.min(w.heal, 100 - t.hp);
+    const gain = Math.min(w.heal, t.maxHp - t.hp);
     t.hp += gain;
-    floaters.push({ x: t.x, y: t.y - 36, text: '+' + gain, life: 70 });
+    floaters.push({ x: t.x, y: t.y - 36 * t.s, text: '+' + gain, life: 70 });
     burst(t.x, t.y - 10, 16, ['#5f5', '#bfb', '#fff']); sfx.heal();
-    if (t.ammo[t.weapon] <= 0) t.weapon = DEFAULT_WEAPON;
+    if (t.ammo[t.weapon] <= 0) t.weapon = home(t);
     lastBoom = camFocus = t.x; state = 'fly'; moveDir = 0; camManual = false; updateUI();
     return;
   }
@@ -223,11 +225,12 @@ function fire() {
   Object.assign(p, { type: t.weapon, trail: [], owner: t, life: 0, main: true });
   projectiles.push(p);
   burst(p.x, p.y, 6, ['#fff', w.col]); sfx.shoot();
-  if (t.ammo[t.weapon] <= 0) t.weapon = DEFAULT_WEAPON;
+  if (t.ammo[t.weapon] <= 0) t.weapon = home(t);
   state = 'fly'; moveDir = 0; camManual = false; updateUI();
 }
 function updateProjectiles() {
   for (const p of projectiles.slice()) {
+    const prevVy = p.vy, w = WEAPONS[p.type];
     const r = stepProj(p, tanks);
     p.life++;
     p.trail.push({ x: p.x, y: p.y }); if (p.trail.length > 12) p.trail.shift();
@@ -235,6 +238,11 @@ function updateProjectiles() {
     if (r === 'out') { drop(); if (p.main) p.owner.last = { x: clamp(p.x, 0, W), y: clamp(p.y, 0, H) }; continue; }
     if (r) { drop(); explode(p); continue; }
     if (p.life > 1500) { drop(); explode(p); continue; }
+    if (w.kind === 'cluster' && prevVy < 0 && p.vy >= 0) {   // scatter: split into bomblets at the top of the arc
+      drop();
+      for (let i = -2; i <= 2; i++)
+        projectiles.push({ x: p.x, y: p.y, vx: p.vx + i * 0.9 * Math.sqrt(K / 0.115), vy: p.vy, type: 'bomblet', trail: [], owner: p.owner, life: 0, main: i === 0 && p.main });
+    }
   }
   if (projectiles.length) camFocus = projectiles[0].x;
 }
@@ -242,10 +250,10 @@ function blast(x, y, r, dmg) {
   carve(x, y, r); sfx.boom(r);
   burst(x, y, r, ['#ff9a3d', '#ffd54a', '#7a5a35', '#fff']);
   shake = Math.max(shake, r / 6);
-  const R = r + 14;
   for (const t of tanks) {
     if (t.dead) continue;
-    const d = Math.hypot(x - t.x, y - (t.y - 8));
+    const R = r + 14 * t.s;
+    const d = Math.hypot(x - t.x, y - (t.y - 8 * t.s));
     if (d < R) hurt(t, Math.max(1, Math.round(dmg * (1 - d / R))));
   }
 }
@@ -282,7 +290,7 @@ function simulate(t, ang, pow, foe) {
   return null;
 }
 function aiPlan() {
-  const me = cur, tm = teams[me.team], D = DIFF[B.diff];
+  const me = cur, tm = teams[me.team], D = DIFF[tm.diff];
   if (me.hp <= 50 && selectable(me, 'repair') && Math.random() < 0.5 + D.special / 2) {   // patch itself up instead of shooting
     me.weapon = 'repair'; ai = { ta: me.ang, tp: me.pow, wait: 0 }; return;
   }
@@ -293,15 +301,15 @@ function aiPlan() {
   else if (D.target === 'near') foe = foes.reduce((a, b) => dist(b) < dist(a) ? b : a);
   else foe = foes.reduce((a, b) => b.hp < a.hp || (b.hp === a.hp && dist(b) < dist(a)) ? b : a);
   const avail = AI_WEAPONS.filter(k => selectable(me, k));
-  me.weapon = avail.length && Math.random() < D.special ? pick(avail) : DEFAULT_WEAPON;
+  me.weapon = avail.length && Math.random() < D.special ? pick(avail) : home(me);
   const safe = SAFE[me.weapon] || WEAPONS[me.weapon].r + 25;
   const mates = tm.tanks.filter(t => t !== me && !t.dead);
   let best = { a: me.x < foe.x ? 45 : 135, pw: 70, d: Infinity };
   const tryShot = (a, pw) => {
     const hit = simulate(me, a, pw, foe);
     if (!hit || Math.hypot(hit.x - me.x, hit.y - me.y) < safe) return;
-    for (const m of mates) if (Math.hypot(hit.x - m.x, hit.y - (m.y - 8)) < safe) return;
-    const d = Math.hypot(hit.x - foe.x, hit.y - (foe.y - 8));
+    for (const m of mates) if (Math.hypot(hit.x - m.x, hit.y - (m.y - 8 * m.s)) < safe) return;
+    const d = Math.hypot(hit.x - foe.x, hit.y - (foe.y - 8 * foe.s));
     if (d < best.d) best = { a, pw, d };
   };
   for (let a = 5; a <= 175; a += 2) for (let pw = 15; pw <= 100; pw += 3) tryShot(a, pw);
@@ -425,28 +433,35 @@ function drawDecor(d) {
   }
 }
 function drawTank(t) {
+  const s = t.s;
   if (t.dead) {
     if (state === 'over' && t.y < H) {
-      ctx.fillStyle = '#222'; ctx.fillRect(t.x - 14, t.y - 6, 28, 6);
-      ctx.fillStyle = '#3a3a3a'; ctx.fillRect(t.x - 10, t.y - 10, 20, 5);
-      ctx.strokeStyle = '#222'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(t.x + 2, t.y - 10); ctx.lineTo(t.x + 14, t.y - 6); ctx.stroke();
+      ctx.save(); ctx.translate(t.x, t.y); ctx.scale(s, s);
+      ctx.fillStyle = '#222'; ctx.fillRect(-14, -6, 28, 6);
+      ctx.fillStyle = '#3a3a3a'; ctx.fillRect(-10, -10, 20, 5);
+      ctx.strokeStyle = '#222'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(2, -10); ctx.lineTo(14, -6); ctx.stroke();
+      ctx.restore();
     }
     return;
   }
   const hop = state === 'over' && endMode === 'win' ? -Math.abs(Math.sin(tick / 7 + t.x)) * 7 : 0;
   if (hop) { ctx.save(); ctx.translate(0, hop); }
-  const pv = pivot(t), a = t.ang * Math.PI / 180;
+  const a = t.ang * Math.PI / 180;
+  ctx.save(); ctx.translate(t.x, t.y); ctx.scale(s, s);
   ctx.lineCap = 'round';
   ctx.strokeStyle = '#222'; ctx.lineWidth = 4;
-  ctx.beginPath(); ctx.moveTo(pv.x, pv.y); ctx.lineTo(pv.x + Math.cos(a) * BARREL, pv.y - Math.sin(a) * BARREL); ctx.stroke();
-  ctx.fillStyle = '#2a2a2a'; ctx.fillRect(t.x - 15, t.y - 5, 30, 5);
-  ctx.fillStyle = t.col; ctx.fillRect(t.x - 12, t.y - 10, 24, 6);
-  ctx.beginPath(); ctx.arc(pv.x, pv.y, 6, Math.PI, 0); ctx.fill();
-  ctx.fillStyle = '#000'; ctx.fillRect(t.x - 19, t.y - 31, 38, 6);
-  ctx.fillStyle = t.hp > 50 ? '#5c5' : t.hp > 25 ? '#ec4' : '#e44';
-  ctx.fillRect(t.x - 18, t.y - 30, 36 * t.hp / 100, 4);
+  ctx.beginPath(); ctx.moveTo(0, -PIV); ctx.lineTo(Math.cos(a) * BARREL, -PIV - Math.sin(a) * BARREL); ctx.stroke();
+  ctx.fillStyle = '#2a2a2a'; ctx.fillRect(-15, -5, 30, 5);
+  ctx.fillStyle = t.col; ctx.fillRect(-12, -10, 24, 6);
+  ctx.beginPath(); ctx.arc(0, -PIV, 6, Math.PI, 0); ctx.fill();
+  if (t.unit === 'heavy') { ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.fillRect(-12, -10, 24, 2); ctx.fillRect(-6, -PIV - 5, 12, 2); }
+  ctx.restore();
+  const bw = 38 * Math.min(s, 1.6), hy = t.y - 31 * s;   // health bar
+  ctx.fillStyle = '#000'; ctx.fillRect(t.x - bw / 2, hy, bw, 6);
+  ctx.fillStyle = t.hp > t.maxHp / 2 ? '#5c5' : t.hp > t.maxHp / 4 ? '#ec4' : '#e44';
+  ctx.fillRect(t.x - bw / 2 + 1, hy + 1, (bw - 2) * t.hp / t.maxHp, 4);
   if (t === cur && state !== 'over' && state !== 'fly') {
-    const by = t.y - 42 + Math.sin(tick / 8) * 2;
+    const by = t.y - 42 * s + Math.sin(tick / 8) * 2;
     ctx.fillStyle = '#ffd54a'; ctx.beginPath(); ctx.moveTo(t.x - 5, by - 6); ctx.lineTo(t.x + 5, by - 6); ctx.lineTo(t.x, by); ctx.fill();
   }
   if (hop) ctx.restore();
@@ -481,7 +496,7 @@ function draw() {
   if (state !== 'over') for (const t of tanks) if (!t.dead && t.last) drawLast(t, t === cur);
   tanks.forEach(drawTank);
   if (state === 'aim' && teams[cur.team].human && cur.weapon !== 'repair') {
-    const pv = pivot(cur), a = cur.ang * Math.PI / 180, L = BARREL + cur.pow * 0.9;
+    const pv = pivot(cur), a = cur.ang * Math.PI / 180, L = BARREL * cur.s + cur.pow * 0.9;
     ctx.setLineDash([3, 6]); ctx.strokeStyle = 'rgba(255,255,255,.8)'; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.moveTo(pv.x, pv.y); ctx.lineTo(pv.x + Math.cos(a) * L, pv.y - Math.sin(a) * L); ctx.stroke();
     ctx.setLineDash([]);
@@ -550,7 +565,7 @@ function frame(ts) {
 const can = () => running && state === 'aim' && teams[cur.team].human;
 /** Weapons this team can ever use (artillery only with guns in range). */
 /** Has ammo, and (for the repair pack) actually needs it. */
-const selectable = (t, k) => t.ammo[k] > 0 && (k !== 'repair' || t.hp < 100);
+const selectable = (t, k) => t.ammo[k] > 0 && (k !== 'repair' || t.hp < t.maxHp);
 const weaponList = () => BATTLE_WEAPONS.filter(k => k !== 'artillery' || teams[cur.team].guns > 0);
 function cycleWeapon(d) {
   if (!can()) return;
@@ -565,7 +580,7 @@ function updateUI() {
   $('ang').value = 180 - Math.round(cur.ang); $('angv').textContent = Math.round(cur.ang) + '°';
   $('pow').value = Math.round(cur.pow); $('powv').textContent = Math.round(cur.pow);
   const list = weaponList(), w = WEAPONS[cur.weapon], a = cur.ammo[cur.weapon], tm = teams[cur.team];
-  $('wrow').hidden = !list.some(k => k !== DEFAULT_WEAPON && (selectable(cur, k) || k === 'artillery'));
+  $('wrow').hidden = !list.some(k => k !== home(cur) && (selectable(cur, k) || k === 'artillery'));
   $('fire').textContent = cur.weapon === 'repair' ? 'REPAIR' : 'FIRE';
   $('wname').textContent = `${w.name} ${a === Infinity ? '∞' : '×' + a}`;
   $('wnote').textContent = !tm.guns ? '' : tm.pool.artillery ? `🎯 Artillery ready (${tm.guns} gun${tm.guns > 1 ? 's' : ''})`

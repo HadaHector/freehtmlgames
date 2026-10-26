@@ -1,14 +1,14 @@
 // Screen flow: menu -> strategy map <-> battles.
 import { $, sleep, hashSeed } from './util.js';
 import { sfx, unlockAudio, wireCommonButtons } from './audio.js';
-import { WEAPONS } from './weapons.js';
+import { WEAPONS, UNITS, weakerDiff } from './weapons.js';
 import { BIOMES } from './biomes.js';
 import * as M from './map.js';
 import { aiTurn } from './mapai.js';
 import { createMapView } from './mapview.js';
 import { startBattle, stopBattle } from './battle.js';
 
-const VERSION = '0.5.1';
+const VERSION = '0.6.0';
 const WATER = { low: 0.1, normal: 0.2, high: 0.3 };
 
 // ---------- menu ----------
@@ -73,6 +73,7 @@ function readSave() {
     const s = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null');
     if (!s || s.v !== 3 || s.map.cells.length !== s.map.w * s.map.h) return null;
     s.map.players.forEach(p => { p.capital = s.map.cells[p.capital]; });
+    s.map.cells.forEach(c => { c.unit = c.unit || 'tank'; });
     s.map.over = false;
     return s;
   } catch (e) { return null; }
@@ -151,6 +152,7 @@ async function loop(id, resumeAt) {
 
 // ---------- actions (shared by humans and the CPU) ----------
 const plural = n => `${n} tank${n === 1 ? '' : 's'}`;
+const stackName = c => `${c.tanks} ${c.tanks === 1 ? UNITS[c.unit].name.toLowerCase() : UNITS[c.unit].plural}`;
 const at = c => `(${c.x + 1},${c.y + 1})`;
 function gains(ctx) {
   const parts = [];
@@ -194,7 +196,7 @@ async function fight(pid, src, dst, n) {
     const guns = [att, defP].map(p => (p ? M.artilleryStrength(map, p.id, dst) : 0));
     const support = guns.some(g => g) ? `\nArtillery support: ${att.name} ${guns[0]}, ${defP ? defP.name : 'neutral'} ${guns[1]}.` : '';
     const choice = await ask(`${att.name} attacks ${defP ? defP.name : 'the neutral garrison'}`,
-      `${plural(n)} against ${plural(dst.tanks)} at ${at(dst)}.${support}`, buttons);
+      `${plural(n)} against ${stackName(dst)} at ${at(dst)}.${support}`, buttons);
     if (id !== runId || choice === 'cancel') return false;
     play = choice === 'fight';
   }
@@ -206,9 +208,10 @@ async function fight(pid, src, dst, n) {
       left: { biome: src.biome, height: src.height }, right: { biome: dst.biome, height: dst.height },
       diff: cfg.diff, onMenu: () => { if (confirm('Leave this game and go back to the menu?')) backToMenu(); },
       teams: [
-        { name: att.name, col: att.col, label: roleOf(att), human: att.human, count: n,
+        { name: att.name, col: att.col, label: roleOf(att), human: att.human, unit: 'tank', diff: cfg.diff, count: n,
           ammo: { ...att.ammo }, artillery: M.artilleryStrength(map, pid, dst) },
-        { name: defP ? defP.name : 'Neutral', col: defP ? defP.col : '#9a9a9a', label: roleOf(defP), human: defHuman,
+        { name: defP ? defP.name : 'Neutral', col: defP ? defP.col : UNITS[dst.unit].neutral || '#9a9a9a', label: roleOf(defP), human: defHuman,
+          unit: dst.unit, diff: defP ? cfg.diff : weakerDiff(cfg.diff),   // neutral garrisons play one step weaker than the CPU
           count: dst.tanks, ammo: defP ? { ...defP.ammo } : {}, artillery: defP ? M.artilleryStrength(map, defP.id, dst) : 0 },
       ],
     };
@@ -217,7 +220,7 @@ async function fight(pid, src, dst, n) {
     if (id !== runId || !res) return false;
     show('map');
     att.ammo = res.ammoLeft[0]; if (defP) defP.ammo = res.ammoLeft[1];
-  } else res = M.autoResolve(n, dst.tanks);
+  } else res = M.autoResolve(n, dst.tanks, dst.unit);
   const won = res.survivors[0] > 0 && res.survivors[1] === 0;
   M.applyBattle(map, pid, src, dst, n, res);
   toast(won ? `${att.name} captures ${at(dst)} (${plural(res.survivors[0])} left)` : `${att.name}'s attack on ${at(dst)} fails`);
@@ -309,7 +312,8 @@ function refresh() {
   else {
     const o = c.owner >= 0 ? map.players[c.owner] : null, b = c.building ? M.BUILDINGS[c.building] : null;
     $('cellInfo').innerHTML = `<b>${at(c)}</b> ${BIOMES[c.biome].name}${c.height ? ' · height ' + c.height : ''}<br>` +
-      `<span class="dot" style="background:${o ? o.col : '#888'}"></span>${o ? o.name : 'Neutral'} · ${plural(c.tanks)}` +
+      `<span class="dot" style="background:${o ? o.col : '#888'}"></span>${o ? o.name : 'Neutral'} · ${c.tanks ? stackName(c) : 'no units'}` +
+      (c.tanks && c.unit !== 'tank' ? ` (${UNITS[c.unit].hp} HP each${c.unit === 'heavy' ? ', scatter shells' : ''})` : '') +
       (c.owner === current && myTurn ? ` (${M.sendable(c)} can move)` : '') +
       (b ? `<br>${b.icon} <b>${b.name}</b> — ${b.desc}` : '');
   }
