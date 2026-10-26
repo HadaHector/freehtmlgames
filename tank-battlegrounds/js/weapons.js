@@ -9,7 +9,7 @@ export const WEAPONS = {
   shell:     { name: 'Shell',     kind: 'blast',   r: 26,  dmg: 30,  col: '#ffd54a' },
   heavy:     { name: 'Heavy',     kind: 'blast',   r: 48,  dmg: 55,  col: '#ff6b3d', stock: true },
   nuke:      { name: 'Nuke',      kind: 'blast',   r: 110, dmg: 100, col: '#fff',    stock: true },
-  repair:    { name: 'Repair',    kind: 'heal',    r: 45,  heal: 50, col: '#5f5',    stock: true },   // lob it at a tank (even yourself)
+  repair:    { name: 'Repair',    kind: 'tool',    heal: 50, col: '#5f5',    stock: true },   // used on yourself instead of shooting
   artillery: { name: 'Artillery', kind: 'barrage', r: 0,   dmg: 0,   col: '#f90' },
   shellfall: { name: 'Barrage',   kind: 'blast',   r: 26,  dmg: 32,  col: '#f90' },   // one shell of an artillery barrage
 };

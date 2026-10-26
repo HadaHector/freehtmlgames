@@ -127,7 +127,7 @@ function startTurn(drift = true) {
   fuel = FUEL; state = 'aim'; camFocus = cur.x; camManual = false; moveDir = 0;
   const tm = teams[cur.team];
   if (tm.guns) tm.pool.artillery = round >= tm.artNext ? 1 : 0;
-  if (!(cur.ammo[cur.weapon] > 0)) cur.weapon = DEFAULT_WEAPON;
+  if (!selectable(cur, cur.weapon)) cur.weapon = DEFAULT_WEAPON;
   if (!tm.human) aiPlan();
   updateUI();
 }
@@ -210,6 +210,15 @@ function fire() {
   const t = cur, w = WEAPONS[t.weapon];
   if (t.ammo[t.weapon] !== Infinity) t.ammo[t.weapon]--;
   if (t.weapon === 'artillery') teams[t.team].artNext = round + ART_COOLDOWN;
+  if (w.kind === 'tool') {   // repair pack: patch up this tank instead of shooting; the turn is used up
+    const gain = Math.min(w.heal, 100 - t.hp);
+    t.hp += gain;
+    floaters.push({ x: t.x, y: t.y - 36, text: '+' + gain, life: 70 });
+    burst(t.x, t.y - 10, 16, ['#5f5', '#bfb', '#fff']); sfx.heal();
+    if (t.ammo[t.weapon] <= 0) t.weapon = DEFAULT_WEAPON;
+    lastBoom = camFocus = t.x; state = 'fly'; moveDir = 0; camManual = false; updateUI();
+    return;
+  }
   const p = launch(t, t.ang, t.pow);
   Object.assign(p, { type: t.weapon, trail: [], owner: t, life: 0, main: true });
   projectiles.push(p);
@@ -245,16 +254,6 @@ function explode(p) {
   if (p.main) p.owner.last = { x: p.x, y: p.y };   // remembered per tank, shown as a marker
   lastBoom = camFocus = p.x;
   switch (w.kind) {
-    case 'heal': {
-      for (const t of tanks) {
-        if (t.dead || Math.hypot(p.x - t.x, p.y - (t.y - 8)) > w.r) continue;
-        const gain = Math.min(w.heal, 100 - t.hp);
-        t.hp += gain;
-        floaters.push({ x: t.x, y: t.y - 36, text: '+' + gain, life: 70 });
-        burst(t.x, t.y - 10, 14, ['#5f5', '#bfb', '#fff']);
-      }
-      sfx.heal(); break;
-    }
     case 'barrage': {   // artillery: the more guns in range, the bigger the barrage
       const n = 6 + 4 * teams[p.owner.team].guns, order = shuffle([...Array(n).keys()]);
       order.forEach((o, i) => projectiles.push({ x: p.x + (i - (n - 1) / 2) * 20 + rnd(-5, 5), y: -20 - o * 22, vx: 0, vy: 2, type: 'shellfall', trail: [], owner: p.owner, life: 0 }));
@@ -284,8 +283,8 @@ function simulate(t, ang, pow, foe) {
 }
 function aiPlan() {
   const me = cur, tm = teams[me.team], D = DIFF[B.diff];
-  if (me.hp <= 50 && me.ammo.repair > 0 && Math.random() < 0.5 + D.special / 2) {   // patch itself up: lob the pack straight up
-    me.weapon = 'repair'; ai = { ta: 90, tp: 10, wait: 0 }; return;
+  if (me.hp <= 50 && selectable(me, 'repair') && Math.random() < 0.5 + D.special / 2) {   // patch itself up instead of shooting
+    me.weapon = 'repair'; ai = { ta: me.ang, tp: me.pow, wait: 0 }; return;
   }
   const foes = tanks.filter(t => !t.dead && t.team !== me.team);
   const dist = t => Math.abs(t.x - me.x);
@@ -293,7 +292,7 @@ function aiPlan() {
   if (D.target === 'random') foe = pick(foes);
   else if (D.target === 'near') foe = foes.reduce((a, b) => dist(b) < dist(a) ? b : a);
   else foe = foes.reduce((a, b) => b.hp < a.hp || (b.hp === a.hp && dist(b) < dist(a)) ? b : a);
-  const avail = AI_WEAPONS.filter(k => me.ammo[k] > 0);
+  const avail = AI_WEAPONS.filter(k => selectable(me, k));
   me.weapon = avail.length && Math.random() < D.special ? pick(avail) : DEFAULT_WEAPON;
   const safe = SAFE[me.weapon] || WEAPONS[me.weapon].r + 25;
   const mates = tm.tanks.filter(t => t !== me && !t.dead);
@@ -481,7 +480,7 @@ function draw() {
   for (const d of decor) if (d.x > camX - 20 && d.x < camX + vw + 20) drawDecor(d);
   if (state !== 'over') for (const t of tanks) if (!t.dead && t.last) drawLast(t, t === cur);
   tanks.forEach(drawTank);
-  if (state === 'aim' && teams[cur.team].human) {
+  if (state === 'aim' && teams[cur.team].human && cur.weapon !== 'repair') {
     const pv = pivot(cur), a = cur.ang * Math.PI / 180, L = BARREL + cur.pow * 0.9;
     ctx.setLineDash([3, 6]); ctx.strokeStyle = 'rgba(255,255,255,.8)'; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.moveTo(pv.x, pv.y); ctx.lineTo(pv.x + Math.cos(a) * L, pv.y - Math.sin(a) * L); ctx.stroke();
@@ -550,12 +549,14 @@ function frame(ts) {
 // ---------- controls ----------
 const can = () => running && state === 'aim' && teams[cur.team].human;
 /** Weapons this team can ever use (artillery only with guns in range). */
+/** Has ammo, and (for the repair pack) actually needs it. */
+const selectable = (t, k) => t.ammo[k] > 0 && (k !== 'repair' || t.hp < 100);
 const weaponList = () => BATTLE_WEAPONS.filter(k => k !== 'artillery' || teams[cur.team].guns > 0);
 function cycleWeapon(d) {
   if (!can()) return;
   const list = weaponList();
   let i = list.indexOf(cur.weapon);
-  for (let n = 0; n < list.length; n++) { i = (i + d + list.length) % list.length; if (cur.ammo[list[i]] > 0) break; }
+  for (let n = 0; n < list.length; n++) { i = (i + d + list.length) % list.length; if (selectable(cur, list[i])) break; }
   cur.weapon = list[i]; sfx.blip(); updateUI();
 }
 function updateUI() {
@@ -564,7 +565,8 @@ function updateUI() {
   $('ang').value = 180 - Math.round(cur.ang); $('angv').textContent = Math.round(cur.ang) + '°';
   $('pow').value = Math.round(cur.pow); $('powv').textContent = Math.round(cur.pow);
   const list = weaponList(), w = WEAPONS[cur.weapon], a = cur.ammo[cur.weapon], tm = teams[cur.team];
-  $('wrow').hidden = !list.some(k => k !== DEFAULT_WEAPON && (cur.ammo[k] > 0 || k === 'artillery'));
+  $('wrow').hidden = !list.some(k => k !== DEFAULT_WEAPON && (selectable(cur, k) || k === 'artillery'));
+  $('fire').textContent = cur.weapon === 'repair' ? 'REPAIR' : 'FIRE';
   $('wname').textContent = `${w.name} ${a === Infinity ? '∞' : '×' + a}`;
   $('wnote').textContent = !tm.guns ? '' : tm.pool.artillery ? `🎯 Artillery ready (${tm.guns} gun${tm.guns > 1 ? 's' : ''})`
     : `🎯 Artillery ready in ${Math.max(1, tm.artNext - round)} round${tm.artNext - round > 1 ? 's' : ''}`;
