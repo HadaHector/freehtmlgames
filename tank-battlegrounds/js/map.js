@@ -1,6 +1,6 @@
 // Strategy-map model and rules. No DOM in here.
-import { makeRng, hashSeed, pick } from './util.js';
-import { WEAPONS, RULES } from './weapons.js';
+import { makeRng, hashSeed } from './util.js';
+import { STOCK_AMMO } from './weapons.js';
 
 export const MAX_STACK = 8;
 export const ART_RANGE = 3;
@@ -12,27 +12,23 @@ export const MAX_AMMO = 9;
  * (tanks made, ammo gained). New building types / resources slot in here.
  */
 export const BUILDINGS = {
-  capital:   { icon: '🏰', name: 'Capital',      desc: 'Makes 1 tank and 1 light ammo per turn. Lose it and you are out.',
-               turn: (map, c, p, ctx) => { addTank(c, ctx); addAmmo(p, pick(ammoOf(ctx.rules, 'light')), ctx); } },
+  capital:   { icon: '🏰', name: 'Capital',      desc: 'Makes 1 tank per turn. Lose it and you are out.',
+               turn: (map, c, p, ctx) => addTank(c, ctx) },
   factory:   { icon: '🏭', name: 'Tank factory', desc: 'Makes 1 tank per turn.',
                turn: (map, c, p, ctx) => addTank(c, ctx) },
-  ammo:      { icon: '📦', name: 'Ammo depot',   desc: 'Makes 1 big ammo per turn (Heavy, and a Nuke every 3rd round in Crazy).',
-               turn: (map, c, p, ctx) => {
-                 for (const k of ammoOf(ctx.rules, 'big')) if (k !== 'nuke' || map.round % 3 === 0) addAmmo(p, k, ctx);
-               } },
+  ammo:      { icon: '📦', name: 'Ammo depot',   desc: 'Makes 1 Heavy shell per turn, and a Nuke every 3rd round.',
+               turn: (map, c, p, ctx) => { addAmmo(p, 'heavy', ctx); if (map.round % 3 === 0) addAmmo(p, 'nuke', ctx); } },
   artillery: { icon: '🎯', name: 'Artillery',    desc: `Fire support: unlocks the Artillery strike in battles within ${ART_RANGE} cells. More guns, bigger barrage.` },
 };
-const ammoOf = (rules, tier) => RULES[rules].weapons.filter(k => WEAPONS[k].tier === tier);
 function addTank(c, ctx) { if (c.tanks < MAX_STACK) { c.tanks++; ctx.tanks++; } }
 function addAmmo(p, k, ctx) {
   if (!k || (p.ammo[k] || 0) >= MAX_AMMO) return;
   p.ammo[k] = (p.ammo[k] || 0) + 1; ctx.ammo.push(k);
 }
 /** What a player starts with. */
-export function startingAmmo(rules) {
+export function startingAmmo() {
   const a = {};
-  for (const k of ammoOf(rules, 'light')) a[k] = 2;
-  for (const k of ammoOf(rules, 'big')) a[k] = k === 'heavy' ? 1 : 0;
+  for (const k of STOCK_AMMO) a[k] = k === 'heavy' ? 1 : 0;
   return a;
 }
 
@@ -60,7 +56,7 @@ export const neighbors = (map, c) =>
 const dist = (a, b) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
 
 /**
- * cfg: { w, h, players, humans, seed, water, rules }   (water = share of cells that are sea, e.g. 0.2)
+ * cfg: { w, h, players, humans, seed, water }   (water = share of cells that are sea, e.g. 0.2)
  * The same cfg always yields the same map.
  */
 export function generateMap(cfg) {
@@ -119,7 +115,7 @@ function tryGenerate(cfg, attempt) {
   rng.shuffle(caps);
   caps.forEach((c, i) => {
     const [name, col] = PLAYER_DEFS[i];
-    map.players.push({ id: i, name, col, human: i < cfg.humans, alive: true, capital: c, ammo: startingAmmo(cfg.rules) });
+    map.players.push({ id: i, name, col, human: i < cfg.humans, alive: true, capital: c, ammo: startingAmmo() });
     c.owner = i; c.building = 'capital'; c.tanks = 4;
   });
 
@@ -139,8 +135,7 @@ function tryGenerate(cfg, attempt) {
     if (own.length) rng.pick(own).building = 'factory';
   }
   const free = rng.shuffle(neutral.filter(c => !c.building));
-  // with classic (shell-only) battles, ammo and artillery would do nothing
-  const kinds = cfg.rules === 'classic' ? ['factory'] : ['factory', 'ammo', 'ammo', 'artillery', 'artillery'];
+  const kinds = ['factory', 'ammo', 'ammo', 'artillery', 'artillery'];
   free.slice(0, Math.max(3, Math.round(free.length * 0.25))).forEach((c, i) => { c.building = kinds[i % kinds.length]; });
   for (const c of map.cells) { c.ready = c.tanks; delete c.e; delete c.t; delete c.m; }
   return map;
@@ -152,8 +147,8 @@ export const totalTanks = (map, id) => map.cells.reduce((s, c) => s + (c.owner =
 export const cellsOwned = (map, id) => map.cells.filter(c => c.owner === id);
 
 /** Production and refresh at the start of a player's turn. Returns { tanks, ammo: [weapon keys] }. */
-export function startTurn(map, id, rules) {
-  const p = map.players[id], ctx = { rules, tanks: 0, ammo: [] };
+export function startTurn(map, id) {
+  const p = map.players[id], ctx = { tanks: 0, ammo: [] };
   for (const c of cellsOwned(map, id)) {
     const b = BUILDINGS[c.building];
     if (b && b.turn) b.turn(map, c, p, ctx);

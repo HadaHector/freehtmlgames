@@ -43,12 +43,8 @@ export const sfx = {
     const v = Math.min(0.7, 0.25 + r / 120), d = 0.25 + r / 110;
     noise(d, v, 1200, 50); tone(110, 30, d, 'sine', v);
   },
-  thud() { noise(0.2, 0.3, 400, 80); tone(120, 50, 0.15, 'sine', 0.3); },
-  bounce() { tone(520, 280, 0.09, 'triangle', 0.18); },
-  tele() { tone(300, 1400, 0.25, 'sine', 0.15); tone(1400, 300, 0.25, 'sine', 0.12, 0.2); },
   splash() { noise(0.35, 0.25, 3500, 700); },
   die() { noise(0.7, 0.6, 1500, 40); tone(80, 25, 0.7, 'sine', 0.6); noise(0.4, 0.3, 800, 60, 0.25); },
-  drill() { for (let i = 0; i < 5; i++) noise(0.12, 0.25, 900, 200, i * 0.07); },
   blip() { tone(700, 900, 0.05, 'square', 0.08); },
   pop() { noise(0.15, 0.12, 4000, 500); tone(900, 200, 0.1, 'triangle', 0.06); },
   win() { [523, 659, 784, 1047, 784, 1047].forEach((f, i) => tone(f, f, 0.22, 'triangle', 0.22, i * 0.14)); },

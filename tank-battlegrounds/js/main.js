@@ -1,14 +1,14 @@
 // Screen flow: menu -> strategy map <-> battles.
 import { $, sleep, hashSeed } from './util.js';
 import { sfx, unlockAudio, wireCommonButtons } from './audio.js';
-import { RULES, WEAPONS } from './weapons.js';
+import { WEAPONS } from './weapons.js';
 import { BIOMES } from './biomes.js';
 import * as M from './map.js';
 import { aiTurn } from './mapai.js';
 import { createMapView } from './mapview.js';
 import { startBattle, stopBattle } from './battle.js';
 
-const VERSION = '0.3.0';
+const VERSION = '0.4.0';
 const WATER = { low: 0.1, normal: 0.2, high: 0.3 };
 
 // ---------- menu ----------
@@ -17,10 +17,9 @@ const OPTIONS = [
   { key: 'water',   label: 'Sea',            choices: [['low', 'Little'], ['normal', 'Some'], ['high', 'Lots']] },
   { key: 'players', label: 'Players',        choices: [[2, '2'], [3, '3'], [4, '4']] },
   { key: 'humans',  label: 'Humans',         choices: [[1, '1 vs CPU'], [2, '2 (pass & play)'], [0, 'Watch CPU']] },
-  { key: 'rules',   label: 'Battle weapons', choices: [['classic', 'Classic'], ['arsenal', 'Arsenal'], ['crazy', 'Crazy']], hint: k => RULES[k].desc },
   { key: 'diff',    label: 'CPU difficulty', choices: [['easy', 'Easy'], ['normal', 'Normal'], ['hard', 'Hard'], ['insane', 'Insane']] },
 ];
-const cfg = { size: '8x8', water: 'normal', players: 2, humans: 1, rules: 'arsenal', diff: 'normal', seed: '' };
+const cfg = { size: '8x8', water: 'normal', players: 2, humans: 1, diff: 'normal', seed: '' };
 try { Object.assign(cfg, JSON.parse(localStorage.getItem('tank-battlegrounds.cfg') || '{}')); } catch (e) {}
 
 function buildOptions() {
@@ -61,7 +60,7 @@ function saveGame() {
   if (!map || map.over) return;
   try {
     localStorage.setItem(SAVE_KEY, JSON.stringify({
-      v: 2, cfg, current,
+      v: 3, cfg, current,
       map: { w: map.w, h: map.h, seed: map.seed, round: map.round, cells: map.cells,
              players: map.players.map(p => ({ ...p, capital: p.capital.idx })) },
     }));
@@ -72,7 +71,7 @@ function clearSave() { try { localStorage.removeItem(SAVE_KEY); } catch (e) {} r
 function readSave() {
   try {
     const s = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null');
-    if (!s || s.v !== 2 || s.map.cells.length !== s.map.w * s.map.h) return null;
+    if (!s || s.v !== 3 || s.map.cells.length !== s.map.w * s.map.h) return null;
     s.map.players.forEach(p => { p.capital = s.map.cells[p.capital]; });
     s.map.over = false;
     return s;
@@ -104,7 +103,7 @@ function startCampaign() {
   try { localStorage.setItem('tank-battlegrounds.cfg', JSON.stringify(cfg)); } catch (e) {}
   const [w, h] = cfg.size.split('x').map(Number);
   if (readSave() && !confirm('Start a new game? Your saved game will be replaced.')) return;
-  beginGame(M.generateMap({ w, h, players: cfg.players, humans: cfg.humans, seed: cfg.seed, water: WATER[cfg.water], rules: cfg.rules }), -1);
+  beginGame(M.generateMap({ w, h, players: cfg.players, humans: cfg.humans, seed: cfg.seed, water: WATER[cfg.water] }), -1);
 }
 
 /** resumeAt: index of the player whose turn it is, or -1 for a fresh game. */
@@ -138,7 +137,7 @@ async function loop(id, resumeAt) {
     for (const p of map.players.slice(from)) {
       if (id !== runId || map.over) return;
       if (!p.alive) continue;
-      const made = resumed ? null : M.startTurn(map, p.id, cfg.rules);
+      const made = resumed ? null : M.startTurn(map, p.id);
       current = p.id; clearSel();
       toast(`Round ${map.round} · ${p.name}${p.human ? '' : ' (CPU)'}'s turn${resumed ? ' · resumed' : gains(made)}`);
       resumed = false;
@@ -205,7 +204,7 @@ async function fight(pid, src, dst, n) {
     const setup = {
       seed: hashSeed(map.seed, src.idx, dst.idx),
       left: { biome: src.biome, height: src.height }, right: { biome: dst.biome, height: dst.height },
-      rules: cfg.rules, diff: cfg.diff, onMenu: () => { if (confirm('Leave this game and go back to the menu?')) backToMenu(); },
+      diff: cfg.diff, onMenu: () => { if (confirm('Leave this game and go back to the menu?')) backToMenu(); },
       teams: [
         { name: att.name, col: att.col, label: roleOf(att), human: att.human, count: n,
           ammo: { ...att.ammo }, artillery: M.artilleryStrength(map, pid, dst) },

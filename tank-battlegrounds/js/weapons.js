@@ -1,27 +1,26 @@
-export const WEAPONS = {
-  // tier: 'light' / 'big' weapons use the player's ammo stockpile; 'support' is enabled by artillery buildings
-  shell:    { name: 'Shell',     kind: 'blast',   r: 26,  dmg: 30,  col: '#ffd54a' },
-  heavy:    { name: 'Heavy',     kind: 'blast',   r: 48,  dmg: 55,  tier: 'big',     col: '#ff6b3d' },
-  nuke:     { name: 'Nuke',      kind: 'blast',   r: 110, dmg: 100, tier: 'big',     col: '#fff' },
-  cluster:  { name: 'Cluster',   kind: 'cluster', r: 22,  dmg: 20,  tier: 'light',   col: '#7ee0ff' },
-  dirt:     { name: 'Dirt',      kind: 'dirt',    r: 34,  dmg: 0,   tier: 'light',   col: '#b98a52' },
-  triple:   { name: 'Triple',    kind: 'blast',   r: 20,  dmg: 25,  tier: 'light',   col: '#ffb3e6' },
-  bouncer:  { name: 'Bouncer',   kind: 'bounce',  r: 30,  dmg: 35,  tier: 'light',   col: '#9f9' },
-  digger:   { name: 'Digger',    kind: 'dig',     r: 11,  dmg: 14,  tier: 'light',   col: '#ddd' },
-  teleport: { name: 'Teleport',  kind: 'tele',    r: 0,   dmg: 0,   tier: 'light',   col: '#c9f' },
-  artillery:{ name: 'Artillery', kind: 'barrage', r: 0,   dmg: 0,   tier: 'support', col: '#f90' },
-  bomblet:  { name: 'Bomblet',   kind: 'blast',   r: 20,  dmg: 22,  col: '#7ee0ff' },
-  shellfall:{ name: 'Barrage',   kind: 'blast',   r: 26,  dmg: 32,  col: '#f90' },
+// Units and weapons. A unit type has its own infinite basic weapon; heavier weapons come from
+// the player's ammo stockpile (made by ammo depots), and artillery from artillery buildings.
+export const UNITS = {
+  tank: { name: 'Tank', weapon: 'shell' },
 };
+export const DEFAULT_WEAPON = UNITS.tank.weapon;
+
+export const WEAPONS = {
+  shell:     { name: 'Shell',     kind: 'blast',   r: 26,  dmg: 30,  col: '#ffd54a' },
+  heavy:     { name: 'Heavy',     kind: 'blast',   r: 48,  dmg: 55,  col: '#ff6b3d', stock: true },
+  nuke:      { name: 'Nuke',      kind: 'blast',   r: 110, dmg: 100, col: '#fff',    stock: true },
+  artillery: { name: 'Artillery', kind: 'barrage', r: 0,   dmg: 0,   col: '#f90' },
+  shellfall: { name: 'Barrage',   kind: 'blast',   r: 26,  dmg: 32,  col: '#f90' },   // one shell of an artillery barrage
+};
+/** Weapons selectable in battle, in menu order (stock ones need ammo, artillery needs guns in range). */
+export const BATTLE_WEAPONS = ['shell', 'heavy', 'nuke', 'artillery'];
+/** Ammo types that live in the player's stockpile. */
+export const STOCK_AMMO = BATTLE_WEAPONS.filter(k => WEAPONS[k].stock);
+
 /** Artillery: a strike is usable from this battle round, then again every ART_COOLDOWN rounds. */
 export const ART_FIRST_ROUND = 3, ART_COOLDOWN = 5;
-export const RULES = {
-  classic: { weapons: ['shell'], desc: 'Just a plain shell. Pure aim and wind.' },
-  arsenal: { weapons: ['shell', 'heavy', 'cluster', 'dirt', 'artillery'], desc: 'Shell, Heavy, Cluster and Dirt bombs, plus artillery support.' },
-  crazy:   { weapons: ['shell', 'triple', 'bouncer', 'digger', 'cluster', 'dirt', 'teleport', 'heavy', 'nuke', 'artillery'],
-             desc: 'Nukes, bouncers, drills, teleports, artillery and more.' },
-};
-export const AI_WEAPONS = ['heavy', 'cluster', 'triple', 'artillery', 'nuke'];
+
+export const AI_WEAPONS = ['heavy', 'artillery', 'nuke'];
 export const SAFE = { artillery: 170, nuke: 135 };
 export const DIFF = {
   easy:   { n0: 4.5, nmin: 2.0,  decay: 0.9,  special: 0.2,  target: 'random' },
